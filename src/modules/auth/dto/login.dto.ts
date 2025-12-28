@@ -4,7 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class LoginDto {
   @ApiProperty({
     description: 'Email or phone number',
-    example: 'admin@tixhub.com',
+    example: 'admin@tickit.com',
   })
   @IsNotEmpty()
   @IsString()

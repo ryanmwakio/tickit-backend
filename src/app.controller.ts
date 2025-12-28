@@ -12,7 +12,7 @@ export class AppController {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      service: 'TixHub API',
+      service: 'Tickit API',
     };
   }
 

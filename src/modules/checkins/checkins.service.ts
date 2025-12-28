@@ -14,7 +14,7 @@ export class CheckinsService {
     private ticketRepository: Repository<Ticket>,
   ) {}
 
-  async scanTicket(qrCode: string, staffId?: string, deviceId?: string, ipAddress?: string): Promise<{
+  async scanTicket(qrCode: string, staffId?: string, deviceId?: string, ipAddress?: string, eventId?: string): Promise<{
     ticket: Ticket;
     checkin: Checkin;
     isDuplicate: boolean;
@@ -37,6 +37,11 @@ export class CheckinsService {
         throw new NotFoundException('Invalid ticket QR code');
       }
 
+      // Validate ticket belongs to event if eventId is provided
+      if (eventId && ticket.ticketType?.eventId !== eventId) {
+        throw new BadRequestException(`This ticket does not belong to the selected event. Event ID: ${ticket.ticketType?.eventId}`);
+      }
+
       return this.processCheckin(ticket, staffId, deviceId, ipAddress);
     }
 
@@ -55,6 +60,11 @@ export class CheckinsService {
 
     if (!ticket) {
       throw new NotFoundException('Ticket not found');
+    }
+
+    // Validate ticket belongs to event if eventId is provided
+    if (eventId && ticket.ticketType?.eventId !== eventId) {
+      throw new BadRequestException(`This ticket does not belong to the selected event. Event ID: ${ticket.ticketType?.eventId}`);
     }
 
     return this.processCheckin(ticket, staffId, deviceId, ipAddress);
@@ -86,6 +96,9 @@ export class CheckinsService {
 
     // Validate ticket status
     if (ticket.status !== TicketStatus.ACTIVE && ticket.status !== TicketStatus.TRANSFERRED) {
+      if (ticket.status === TicketStatus.CHECKED_IN) {
+        throw new BadRequestException('This ticket has already been used');
+      }
       throw new BadRequestException(`Ticket is ${ticket.status} and cannot be checked in`);
     }
 
@@ -141,6 +154,90 @@ export class CheckinsService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async verifyTicket(code: string, eventId?: string): Promise<{
+    ticket: Ticket;
+    isValid: boolean;
+    isCheckedIn: boolean;
+    canCheckIn: boolean;
+    message: string;
+  }> {
+    // Try to find ticket by various methods
+    let ticket: Ticket | null = null;
+
+    // First, try parsing as base64 QR code
+    try {
+      const parsed: unknown = JSON.parse(Buffer.from(code, 'base64').toString());
+      if (typeof parsed === 'object' && parsed !== null) {
+        const ticketData = parsed as { ticketNumber?: string; ticketId?: string };
+        if (ticketData.ticketNumber || ticketData.ticketId) {
+          ticket = await this.ticketRepository.findOne({
+            where: [
+              ...(ticketData.ticketNumber ? [{ ticketNumber: ticketData.ticketNumber }] : []),
+              ...(ticketData.ticketId ? [{ id: ticketData.ticketId }] : []),
+            ],
+            relations: ['ticketType', 'ticketType.event', 'owner'],
+          });
+        }
+      }
+    } catch {
+      // Not a base64 QR code, continue with other methods
+    }
+
+    // If not found, try direct lookup by QR code
+    if (!ticket) {
+      ticket = await this.ticketRepository.findOne({
+        where: { qrCode: code },
+        relations: ['ticketType', 'ticketType.event', 'owner'],
+      });
+    }
+
+    // If still not found, try ticket number or ID directly
+    if (!ticket) {
+      ticket = await this.ticketRepository.findOne({
+        where: [
+          { ticketNumber: code },
+          { id: code },
+        ],
+        relations: ['ticketType', 'ticketType.event', 'owner'],
+      });
+    }
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    // Validate ticket belongs to event if eventId is provided
+    if (eventId && ticket.ticketType?.eventId !== eventId) {
+      throw new BadRequestException(`This ticket does not belong to the selected event. Event ID: ${ticket.ticketType?.eventId}`);
+    }
+
+    // Check if already checked in
+    const existingCheckin = await this.checkinRepository.findOne({
+      where: { ticketId: ticket.id },
+      order: { createdAt: 'DESC' },
+    });
+
+    const isCheckedIn = ticket.status === TicketStatus.CHECKED_IN || existingCheckin !== null;
+    const canCheckIn = (ticket.status === TicketStatus.ACTIVE || ticket.status === TicketStatus.TRANSFERRED) && !isCheckedIn;
+
+    let message = '';
+    if (isCheckedIn) {
+      message = 'This ticket has already been used';
+    } else if (!canCheckIn) {
+      message = `Ticket is ${ticket.status} and cannot be checked in`;
+    } else {
+      message = 'Ticket is valid and ready for check-in';
+    }
+
+    return {
+      ticket,
+      isValid: true,
+      isCheckedIn,
+      canCheckIn,
+      message,
     };
   }
 

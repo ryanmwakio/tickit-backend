@@ -4,7 +4,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export class StartStreamDto {
   @ApiPropertyOptional({
     description: 'Stream URL (optional, will be generated if not provided)',
-    example: 'rtmp://stream.tixhub.com/live/stream-key-123',
+    example: 'rtmp://stream.tickit.com/live/stream-key-123',
   })
   @IsOptional()
   @IsString()

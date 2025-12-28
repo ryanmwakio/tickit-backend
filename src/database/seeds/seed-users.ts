@@ -36,7 +36,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     // Admin users
     {
       id: uuidv4(),
-      email: 'admin@tixhub.com',
+      email: 'admin@tickit.com',
       phoneNumber: '+254700000001',
       password_hash: defaultPassword,
       firstName: 'Admin',
@@ -49,7 +49,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'superadmin@tixhub.com',
+      email: 'superadmin@tickit.com',
       phoneNumber: '+254700000002',
       password_hash: defaultPassword,
       firstName: 'Super',
@@ -64,7 +64,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     // Organiser users
     {
       id: uuidv4(),
-      email: 'organiser1@tixhub.com',
+      email: 'organiser1@tickit.com',
       phoneNumber: '+254700000010',
       password_hash: defaultPassword,
       firstName: 'John',
@@ -77,7 +77,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'organiser2@tixhub.com',
+      email: 'organiser2@tickit.com',
       phoneNumber: '+254700000011',
       password_hash: defaultPassword,
       firstName: 'Jane',
@@ -90,7 +90,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'promoter@tixhub.com',
+      email: 'promoter@tickit.com',
       phoneNumber: '+254700000020',
       password_hash: defaultPassword,
       firstName: 'Mike',
@@ -105,7 +105,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     // Staff users
     {
       id: uuidv4(),
-      email: 'staff1@tixhub.com',
+      email: 'staff1@tickit.com',
       phoneNumber: '+254700000030',
       password_hash: defaultPassword,
       firstName: 'Sarah',
@@ -118,7 +118,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'staff2@tixhub.com',
+      email: 'staff2@tickit.com',
       phoneNumber: '+254700000031',
       password_hash: defaultPassword,
       firstName: 'David',
@@ -133,7 +133,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     // Regular attendee users
     {
       id: uuidv4(),
-      email: 'user1@tixhub.com',
+      email: 'user1@tickit.com',
       phoneNumber: '+254700000100',
       password_hash: defaultPassword,
       firstName: 'Alice',
@@ -146,7 +146,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'user2@tixhub.com',
+      email: 'user2@tickit.com',
       phoneNumber: '+254700000101',
       password_hash: defaultPassword,
       firstName: 'Bob',
@@ -159,7 +159,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'user3@tixhub.com',
+      email: 'user3@tickit.com',
       phoneNumber: '+254700000102',
       password_hash: defaultPassword,
       firstName: 'Charlie',
@@ -172,7 +172,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'user4@tixhub.com',
+      email: 'user4@tickit.com',
       phoneNumber: '+254700000103',
       password_hash: defaultPassword,
       firstName: 'Diana',
@@ -185,7 +185,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
-      email: 'user5@tixhub.com',
+      email: 'user5@tickit.com',
       phoneNumber: '+254700000104',
       password_hash: defaultPassword,
       firstName: 'Eve',
@@ -241,7 +241,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
   console.log(`✅ Seeded ${users.length} users`);
   console.log('\n📝 Default password for all users: Password123!');
   console.log('\n👤 Test Users:');
-  console.log('  Admin: admin@tixhub.com / Password123!');
-  console.log('  Organiser: organiser1@tixhub.com / Password123!');
-  console.log('  User: user1@tixhub.com / Password123!');
+  console.log('  Admin: admin@tickit.com / Password123!');
+  console.log('  Organiser: organiser1@tickit.com / Password123!');
+  console.log('  User: user1@tickit.com / Password123!');
 }

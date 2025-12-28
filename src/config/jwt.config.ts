@@ -10,7 +10,7 @@ export default registerAs('jwt', () => {
     secret,
     accessTokenTtl: parseInt(process.env.JWT_ACCESS_TTL || '3600', 10), // 1 hour
     refreshTokenTtl: parseInt(process.env.JWT_REFRESH_TTL || '2592000', 10), // 30 days
-    issuer: process.env.JWT_ISSUER || 'TixHub',
+    issuer: process.env.JWT_ISSUER || 'Tickit',
   };
 });
 

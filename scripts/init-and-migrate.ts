@@ -13,7 +13,7 @@ async function initDatabase() {
   const port = parseInt(process.env.DB_PORT || '3306', 10);
   const username = process.env.DB_USERNAME || 'root';
   const password = process.env.DB_PASSWORD || '';
-  const database = process.env.DB_DATABASE || 'tixhub';
+  const database = process.env.DB_DATABASE || 'tickit';
 
   try {
     // Connect to MySQL server (without specifying database)

@@ -73,7 +73,7 @@ export class ChatBotService {
     // Greetings
     if (this.matchesPattern(normalizedMessage, ['hello', 'hi', 'hey', 'greetings'])) {
       return {
-        message: "Hello! 👋 I'm TixHub Assistant. How can I help you today?",
+        message: "Hello! 👋 I'm Tickit Assistant. How can I help you today?",
         quickReplies: [
           'Check my tickets',
           'Event information',
@@ -247,7 +247,7 @@ export class ChatBotService {
    * Get welcome message for new chat session
    */
   getWelcomeMessage(): string {
-    return "Hello! 👋 Welcome to TixHub. I'm your virtual assistant. How can I help you today?";
+    return "Hello! 👋 Welcome to Tickit. I'm your virtual assistant. How can I help you today?";
   }
 
   /**

@@ -42,7 +42,7 @@ export class OtpService {
       }
 
       // In production, send via SMS provider
-      // await this.sendSms(phoneNumber, `Your TixHub verification code is: ${otp}. Valid for 10 minutes.`);
+      // await this.sendSms(phoneNumber, `Your Tickit verification code is: ${otp}. Valid for 10 minutes.`);
 
       return {
         sent: true,

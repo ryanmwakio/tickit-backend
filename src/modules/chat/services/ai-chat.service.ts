@@ -38,7 +38,7 @@ export class AiChatService {
     }
 
     try {
-      const systemPrompt = `You are a helpful customer support assistant for TixHub, a Kenya-first event ticketing platform. Your role is to:
+      const systemPrompt = `You are a helpful customer support assistant for Tickit, a Kenya-first event ticketing platform. Your role is to:
 
 1. Help users with tickets, events, payments, orders, and account-related questions
 2. Provide friendly, concise, and accurate responses

@@ -25,6 +25,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { TicketStatus } from '../../database/entities/ticket.entity';
 import { ScanTicketDto } from './dto/scan-ticket.dto';
 import { BatchScanDto } from './dto/batch-scan.dto';
+import { VerifyTicketDto } from './dto/verify-ticket.dto';
 
 @ApiTags('checkins')
 @Controller('scanner')
@@ -56,6 +57,7 @@ export class CheckinsController {
       user.id,
       undefined, // deviceId
       ipAddress || 'unknown',
+      scanDto.eventId, // eventId for validation
     );
 
     return {
@@ -65,6 +67,25 @@ export class CheckinsController {
         !result.isDuplicate &&
         result.ticket.status === TicketStatus.CHECKED_IN,
     };
+  }
+
+  @Post('verify')
+  @Roles(UserRole.STAFF, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Verify ticket code without checking in' })
+  @ApiResponse({ status: 200, description: 'Ticket verified successfully' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid ticket or does not belong to event',
+  })
+  async verifyTicket(
+    @Body() verifyDto: VerifyTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.checkinsService.verifyTicket(
+      verifyDto.code,
+      verifyDto.eventId,
+    );
   }
 
   @Post('batch-scan')

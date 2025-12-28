@@ -206,7 +206,7 @@ export class LiveStreamingService {
   private generateStreamUrl(eventId: string, streamKey: string): string {
     // Default: RTMP URL format
     // In production, integrate with streaming service (e.g., AWS IVS, Mux, Wowza)
-    const baseUrl = process.env.STREAM_BASE_URL || 'rtmp://stream.tixhub.com/live';
+    const baseUrl = process.env.STREAM_BASE_URL || 'rtmp://stream.tickit.com/live';
     return `${baseUrl}/${streamKey}`;
   }
 }

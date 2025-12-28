@@ -20,7 +20,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Log application startup
-  fileLogger.log('TixHub Backend starting...', 'Bootstrap');
+  fileLogger.log('Tickit Backend starting...', 'Bootstrap');
 
   // Security
   app.use(helmet());
@@ -78,7 +78,7 @@ async function bootstrap() {
 
   // Swagger Documentation
   const config = new DocumentBuilder()
-    .setTitle('TixHub API')
+    .setTitle('Tickit API')
     .setDescription('Event & Ticketing Platform API Documentation')
     .setVersion('1.0')
     .addBearerAuth()
@@ -96,12 +96,13 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = configService.get('app.port') || configService.get('PORT') || 5000;
-  await app.listen(port);
+  // Listen on all interfaces (0.0.0.0) to allow connections from mobile devices on the network
+  await app.listen(port, '0.0.0.0');
 
-  fileLogger.log(`TixHub API is running on: http://localhost:${port}`, 'Bootstrap');
+  fileLogger.log(`Tickit API is running on: http://localhost:${port}`, 'Bootstrap');
   fileLogger.log(`Swagger docs available at: http://localhost:${port}/api/docs`, 'Bootstrap');
 
-  console.log(`🚀 TixHub API is running on: http://localhost:${port}`);
+  console.log(`🚀 Tickit API is running on: http://localhost:${port}`);
   console.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
   console.log(`📝 Logs are being written to: ${process.cwd()}/logs/`);
 }

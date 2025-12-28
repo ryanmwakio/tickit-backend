@@ -172,7 +172,7 @@ export class OrganiserApplicationsService {
         id: `organiser-application-${application.id}-${Date.now()}`,
         type: NotificationPayloadType.SYSTEM_ALERT,
         title: 'New Organiser Application',
-        message: `${application.name} from ${application.organisation} has submitted an application to host on Tixhub`,
+        message: `${application.name} from ${application.organisation} has submitted an application to host on Tickit`,
         metadata: {
           applicationId: application.id,
           name: application.name,
@@ -188,7 +188,7 @@ export class OrganiserApplicationsService {
         this.notificationsService.createNotification({
           userId: admin.id,
           title: 'New Organiser Application',
-          message: `${application.name} from ${application.organisation} has submitted an application to host on Tixhub`,
+          message: `${application.name} from ${application.organisation} has submitted an application to host on Tickit`,
           type: NotificationType.SYSTEM_ALERT,
           metadata: {
             applicationId: application.id,

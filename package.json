@@ -1,8 +1,8 @@
 {
-  "name": "tixhub-backend",
+  "name": "tickit-backend",
   "version": "1.0.0",
-  "description": "TixHub - Event & Ticketing Platform Backend API",
-  "author": "TixHub Team",
+  "description": "Tickit - Event & Ticketing Platform Backend API",
+  "author": "Tickit Team",
   "private": true,
   "license": "UNLICENSED",
   "engines": {

@@ -349,7 +349,7 @@ export class NotificationsService {
       'Notifications.sendEmail',
       () => circuitBreakers.notifications.execute(async () => {
         await this.emailTransporter!.sendMail({
-          from: this.configService.get<string>('SMTP_FROM') || 'noreply@tixhub.com',
+          from: this.configService.get<string>('SMTP_FROM') || 'noreply@tickit.com',
           to,
           subject,
           text: text || html.replace(/<[^>]*>/g, ''),

@@ -1,4 +1,4 @@
-# TixHub Backend API
+# Tickit Backend API
 
 A comprehensive event & ticketing platform backend built with NestJS, TypeORM, and MySQL. This backend provides a complete REST API for managing events, tickets, orders, payments, and more.
 
@@ -27,7 +27,7 @@ A comprehensive event & ticketing platform backend built with NestJS, TypeORM, a
 
 1. **Navigate to backend directory**
    ```bash
-   cd tixhub-backend
+   cd tickit-backend
    ```
 
 2. **Install dependencies**
@@ -44,7 +44,7 @@ A comprehensive event & ticketing platform backend built with NestJS, TypeORM, a
 4. **Create MySQL database**
    ```bash
    mysql -u root -p
-   CREATE DATABASE tixhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE DATABASE tickit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    EXIT;
    ```
 
@@ -190,13 +190,13 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USERNAME=root
 DB_PASSWORD=your_password
-DB_DATABASE=tixhub
+DB_DATABASE=tickit
 
 # JWT (REQUIRED)
 JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters
 JWT_ACCESS_TTL=3600
 JWT_REFRESH_TTL=2592000
-JWT_ISSUER=TixHub
+JWT_ISSUER=Tickit
 
 # Redis (Optional)
 REDIS_HOST=localhost
@@ -526,7 +526,7 @@ Interactive API documentation is available at `/api/docs` when the server is run
 
 ## 📄 License
 
-Private - TixHub Platform
+Private - Tickit Platform
 
 ## 🤝 Contributing
 
