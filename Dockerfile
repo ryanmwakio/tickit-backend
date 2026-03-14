@@ -22,4 +22,4 @@ COPY --from=builder /app/dist ./dist
 # Railway sets PORT; app reads process.env.PORT
 EXPOSE 5000
 
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main.js"]
