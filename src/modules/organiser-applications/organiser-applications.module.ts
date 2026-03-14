@@ -1,15 +1,16 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { OrganiserApplicationsService } from './organiser-applications.service';
-import { OrganiserApplicationsController } from './organiser-applications.controller';
-import { OrganiserApplication } from '../../database/entities/organiser-application.entity';
-import { User } from '../../database/entities/user.entity';
-import { NotificationsModule } from '../notifications/notifications.module';
-import { CommonModule } from '../../common/common.module';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { OrganiserApplicationsService } from "./organiser-applications.service";
+import { OrganiserApplicationsController } from "./organiser-applications.controller";
+import { OrganiserApplication } from "../../database/entities/organiser-application.entity";
+import { User } from "../../database/entities/user.entity";
+import { Organiser } from "../../database/entities/organiser.entity";
+import { NotificationsModule } from "../notifications/notifications.module";
+import { CommonModule } from "../../common/common.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OrganiserApplication, User]),
+    TypeOrmModule.forFeature([OrganiserApplication, User, Organiser]),
     NotificationsModule,
     CommonModule,
   ],
@@ -18,6 +19,3 @@ import { CommonModule } from '../../common/common.module';
   exports: [OrganiserApplicationsService],
 })
 export class OrganiserApplicationsModule {}
-
-
-

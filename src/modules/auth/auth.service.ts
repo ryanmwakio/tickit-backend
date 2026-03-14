@@ -199,6 +199,38 @@ export class AuthService {
     return { verified: true };
   }
 
+  async loginWithGoogle(
+    idToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<LoginResponseDto> {
+    const user = await this.socialLoginService.processSocialLogin(
+      'google',
+      '', // Google uses idToken only
+      idToken,
+    );
+
+    if (user.status === UserStatus.PENDING) {
+      await this.usersService.update(user.id, { status: UserStatus.ACTIVE });
+    }
+
+    const tokens = await this.generateTokens(user, ipAddress, userAgent);
+    const userResponse = await this.usersService.toResponseDto(user);
+
+    this.notificationsService.createNotification({
+      userId: user.id,
+      title: 'New Login Detected',
+      message: `You signed in with Google from ${ipAddress || 'unknown location'}.`,
+      type: NotificationType.LOGIN_ALERT,
+      metadata: { ipAddress, userAgent, link: '/profile' },
+    }).catch((err) => console.error('Login alert notification failed:', err?.message));
+
+    return {
+      tokens,
+      user: userResponse,
+    };
+  }
+
   async socialLogin(socialLoginDto: {
     provider: string;
     accessToken: string;

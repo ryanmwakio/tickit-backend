@@ -90,6 +90,16 @@ export class CreateEventDto {
   @IsString()
   venueId?: string;
 
+  @ApiPropertyOptional({ description: 'Ticket Design ID' })
+  @IsOptional()
+  @IsString()
+  ticketDesignId?: string;
+
+  @ApiPropertyOptional({ description: 'Seat Map ID' })
+  @IsOptional()
+  @IsString()
+  seatMapId?: string;
+
   @ApiPropertyOptional({ 
     description: 'Additional metadata', 
     type: 'object',

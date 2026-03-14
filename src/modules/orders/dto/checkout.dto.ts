@@ -53,6 +53,15 @@ export class CheckoutItemDto {
   @ValidateNested({ each: true })
   @Type(() => AttendeeDto)
   attendees?: AttendeeDto[];
+
+  @ApiPropertyOptional({ 
+    description: 'Selected seat IDs (for events with seat maps). Must match quantity.',
+    type: [String] 
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  seatIds?: string[];
 }
 
 export class PaymentMethodDto {

@@ -4,6 +4,7 @@ import { OrdersService } from './orders.service';
 import { OrdersController } from './orders.controller';
 import { PaymentsModule } from '../payments/payments.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SeatMapsModule } from '../seat-maps/seat-maps.module';
 import { CommonModule } from '../../common/common.module';
 import { Order } from '../../database/entities/order.entity';
 import { OrderItem } from '../../database/entities/order-item.entity';
@@ -17,6 +18,7 @@ import { User } from '../../database/entities/user.entity';
     TypeOrmModule.forFeature([Order, OrderItem, TicketType, Ticket, Payment, User]),
     PaymentsModule,
     NotificationsModule,
+    SeatMapsModule,
     CommonModule,
   ],
   controllers: [OrdersController],

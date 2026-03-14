@@ -180,10 +180,14 @@ The application uses MySQL with TypeORM. Entities are defined in `src/database/e
 ### Required Environment Variables
 
 ```env
-# Application
+# Application (REQUIRED)
 NODE_ENV=development
 PORT=5000
 CORS_ORIGIN=http://localhost:3000
+
+# Application URLs (for payment redirects and webhooks)
+APP_URL=http://localhost:5000
+FRONTEND_URL=http://localhost:3000
 
 # Database (REQUIRED)
 DB_HOST=localhost
@@ -192,38 +196,61 @@ DB_USERNAME=root
 DB_PASSWORD=your_password
 DB_DATABASE=tickit
 
+# Database Options
+DB_USE_MIGRATIONS=false
+DB_DROP_SCHEMA=false
+
 # JWT (REQUIRED)
 JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters
+JWT_ACCESS_SECRET=your-super-secret-jwt-key-minimum-32-characters
 JWT_ACCESS_TTL=3600
 JWT_REFRESH_TTL=2592000
 JWT_ISSUER=Tickit
 
-# Redis (Optional)
+# Redis (Optional but Recommended)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_DB=0
+REDIS_TTL=3600
+
+# Paystack Payment Gateway (REQUIRED for payments)
+# Get keys from: https://dashboard.paystack.com/ (test/live)
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxx
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx
+PAYSTACK_CALLBACK_URL=https://yourdomain.com/paystack/callback
 ```
 
 ### Optional Environment Variables
 
 ```env
-# Email (Optional)
+# Email (Optional - for email notifications)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
 
-# SMS (Optional)
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_PHONE_NUMBER=
+# SMS (Optional - for SMS notifications via Twilio)
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
 
-# MPesa (Optional)
-MPESA_CONSUMER_KEY=
-MPESA_CONSUMER_SECRET=
-MPESA_SHORTCODE=
-MPESA_PASSKEY=
+# MPesa (Optional - fallback for M-Pesa payments)
+# Get from: https://developer.safaricom.co.ke/
+MPESA_CONSUMER_KEY=your_mpesa_consumer_key
+MPESA_CONSUMER_SECRET=your_mpesa_consumer_secret
+MPESA_SHORTCODE=your_mpesa_shortcode
+MPESA_PASSKEY=your_mpesa_passkey
+MPESA_BASE_URL=https://sandbox.safaricom.co.ke
+
+# Admin (Optional)
+ADMIN_TOKEN=your_admin_token_here
+
+# Streaming (Optional)
+STREAM_BASE_URL=rtmp://stream.tickit.com/live
+
+# API (Optional)
+API_URL=http://localhost:5000
 ```
 
 **⚠️ Important**: Never commit `.env` file to version control. Always use `.env.example` as a template.

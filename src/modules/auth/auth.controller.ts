@@ -8,11 +8,13 @@ import {
   Req,
   Get,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginResponseDto, SignupResponseDto } from './dto/auth-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -26,6 +28,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 attempts per minute for login
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'User login' })
   @ApiResponse({ status: 200, description: 'Login successful', type: LoginResponseDto })
@@ -41,6 +44,7 @@ export class AuthController {
 
   @Public()
   @Post('signup')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 signups per minute per IP
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'User signup' })
   @ApiResponse({ status: 201, description: 'Signup successful', type: SignupResponseDto })
@@ -62,6 +66,7 @@ export class AuthController {
 
   @Public()
   @Post('send-otp')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 OTPs per minute per IP
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send OTP to phone number' })
   @ApiResponse({ status: 200, description: 'OTP sent successfully' })
@@ -71,12 +76,29 @@ export class AuthController {
 
   @Public()
   @Post('verify-phone')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify phone number with OTP' })
   @ApiResponse({ status: 200, description: 'Phone verified successfully' })
   @ApiResponse({ status: 400, description: 'Invalid OTP' })
   async verifyPhone(@Body() verifyPhoneDto: { phoneNumber: string; otp: string }) {
     return this.authService.verifyPhone(verifyPhoneDto.phoneNumber, verifyPhoneDto.otp);
+  }
+
+  @Public()
+  @Post('google')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with Google (ID token from Google Sign-In)' })
+  @ApiResponse({ status: 200, description: 'Login successful', type: LoginResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid Google token' })
+  async loginWithGoogle(
+    @Body() dto: GoogleLoginDto,
+    @Req() request: Request,
+  ): Promise<LoginResponseDto> {
+    const ipAddress = request.ip || (request as any).connection?.remoteAddress;
+    const userAgent = request.headers['user-agent'];
+    return this.authService.loginWithGoogle(dto.idToken, ipAddress, userAgent);
   }
 
   @Public()

@@ -55,12 +55,16 @@ export class UsersService {
   }
 
   async toResponseDto(user: User): Promise<UserResponseDto> {
-    // Load roles from relation if available, otherwise fall back to comma-separated string
+    // Load roles from relation if available, otherwise fall back to comma-separated string or activeRole
     let roles: string[] = [];
     if (user.rolesList && user.rolesList.length > 0) {
       roles = user.rolesList.map((r) => r.name);
-    } else if (user.roles) {
-      roles = user.roles.split(',').map((r) => r.trim());
+    } else if (user.roles && user.roles.trim()) {
+      roles = user.roles.split(',').map((r) => r.trim()).filter(Boolean);
+    }
+    // Ensure activeRole is always in roles for correct frontend hasRole() checks
+    if (user.activeRole && !roles.includes(user.activeRole)) {
+      roles = [...roles, user.activeRole];
     }
 
     return {

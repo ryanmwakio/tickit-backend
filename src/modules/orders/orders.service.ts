@@ -19,7 +19,9 @@ import { PaymentsService } from '../payments/payments.service';
 import { RedisService } from '../../common/services/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeNotificationService } from '../../common/services/realtime-notification.service';
+import { SeatMapsService } from '../seat-maps/seat-maps.service';
 import { NotificationType } from '../../database/entities/notification.entity';
+import { Seat } from '../../database/entities/seat.entity';
 import { v4 as uuidv4 } from 'uuid';
 import * as QRCode from 'qrcode';
 
@@ -42,6 +44,7 @@ export class OrdersService {
     private redisService: RedisService,
     private notificationsService: NotificationsService,
     private realtimeNotificationService: RealtimeNotificationService,
+    private seatMapsService: SeatMapsService,
     private dataSource: DataSource,
   ) {}
 
@@ -220,6 +223,8 @@ export class OrdersService {
 
     // Hold IDs for cleanup on error
     const holdIds: string[] = [];
+    // Reserved seat IDs for cleanup on error
+    let reservedSeatIds: string[] = [];
 
     try {
       // Hold seats in Redis first to prevent overselling
@@ -284,6 +289,51 @@ export class OrdersService {
         }
       }
 
+      // Handle seat selection if provided
+      for (let i = 0; i < checkoutDto.items.length; i++) {
+        const item = checkoutDto.items[i];
+        if (item.seatIds && item.seatIds.length > 0) {
+          // Validate seat count matches quantity
+          if (item.seatIds.length !== item.quantity) {
+            throw new BadRequestException(
+              `Seat count (${item.seatIds.length}) must match quantity (${item.quantity}) for item ${i + 1}`
+            );
+          }
+
+          // Get event to check if it has a seat map
+          const ticketType = lockedTicketTypes[i];
+          if (!ticketType || !ticketType.event) {
+            throw new NotFoundException(`Event not found for ticket type ${item.ticketTypeId}`);
+          }
+
+          // Check if event has seat map
+          const event = await queryRunner.manager.findOne('Event', {
+            where: { id: ticketType.eventId },
+          }) as any;
+
+          if (!event || !event.seatMapId) {
+            throw new BadRequestException(`Event does not have a seat map configured`);
+          }
+
+          // Reserve seats (this will validate availability)
+          try {
+            const reservedUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+            const reservedSeats = await this.seatMapsService.reserveSeats(
+              item.seatIds,
+              buyerId || 'guest',
+              reservedUntil,
+            );
+            reservedSeatIds.push(...item.seatIds);
+          } catch (error) {
+            // Release any holds on error
+            for (const holdId of holdIds) {
+              await this.redisService.releaseSeatHold(holdId);
+            }
+            throw error;
+          }
+        }
+      }
+
       // Calculate total (apply promo code if provided)
       let totalAmountCents = 0;
       const orderItems: OrderItem[] = [];
@@ -296,9 +346,21 @@ export class OrdersService {
           throw new NotFoundException(`Ticket type ${item.ticketTypeId} not found`);
         }
         
-        const unitPrice = ticketType.priceCents;
+        // If seats are selected, use seat prices (may override ticket type price)
+        let unitPrice = ticketType.priceCents;
+        if (item.seatIds && item.seatIds.length > 0) {
+          // Get seat prices - for now use ticket type price, but seats can have individual prices
+          // TODO: Fetch seat prices and calculate accordingly
+        }
+        
         const totalPrice = unitPrice * item.quantity;
         totalAmountCents += totalPrice;
+
+        // Store seat IDs in metadata
+        const metadata: any = {};
+        if (item.seatIds && item.seatIds.length > 0) {
+          metadata.seatIds = item.seatIds;
+        }
 
         const orderItem = queryRunner.manager.create(OrderItem, {
           id: uuidv4(),
@@ -307,6 +369,7 @@ export class OrdersService {
           quantity: item.quantity,
           unitPriceCents: unitPrice,
           totalPriceCents: totalPrice,
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         });
         orderItems.push(orderItem);
       }
@@ -350,6 +413,9 @@ export class OrdersService {
         await this.redisService.releaseSeatHold(holdId);
       }
 
+      // Note: Seat reservations are kept until payment is completed or order is cancelled
+      // They will be released in markAsPaid (when marking as sold) or if order is cancelled
+
       // If skipPayment is true, automatically mark order as paid and generate tickets
       // COMPLETELY SKIP all payment processing
       if (checkoutDto.skipPayment) {
@@ -369,24 +435,90 @@ export class OrdersService {
       // Initiate payment based on method
       // Payment service failures should not prevent order creation
       let paymentInstructions: any;
-      if (checkoutDto.payment.method === 'mpesa_express') {
+      
+      // Skip payment if requested (for development/demo)
+      if (checkoutDto.skipPayment) {
+        paymentInstructions = {
+          skipped: true,
+          message: 'Payment skipped in development mode',
+        };
+      } else if (checkoutDto.payment.method === 'mpesa_express') {
         const phoneNumber = checkoutDto.payment.metadata?.phone;
         if (!phoneNumber) {
           throw new BadRequestException('Phone number required for MPesa Express');
         }
         try {
+          // Store customer info in order metadata for guest checkout
+          const firstItem = checkoutDto.items[0];
+          const firstAttendee = firstItem.attendees?.[0];
+          if (firstAttendee && !savedOrder.metadata) {
+            savedOrder.metadata = {};
+          }
+          if (firstAttendee && savedOrder.metadata) {
+            savedOrder.metadata.customerInfo = {
+              firstName: firstAttendee.name?.split(' ')[0] || 'Guest',
+              lastName: firstAttendee.name?.split(' ').slice(1).join(' ') || 'User',
+              email: firstAttendee.email || 'guest@tickit.co.ke',
+              phoneNumber: firstAttendee.phoneNumber || phoneNumber,
+            };
+            await queryRunner.manager.save(Order, savedOrder);
+          }
+
           const paymentResult = await this.paymentsService.processMpesaExpress(
             savedOrder.id,
             phoneNumber,
+            undefined,
+            true, // Use IntaSend
           );
           paymentInstructions = {
             checkoutToken: paymentResult.checkoutToken,
+            invoiceId: paymentResult.invoiceId, // For backward compatibility
+            reference: paymentResult.invoiceId, // IntaSend invoice ID
+            authorizationUrl: paymentResult.checkoutUrl,
             expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
+            provider: 'intasend',
           };
         } catch (paymentError: any) {
           // Log payment error but don't fail the order
           // Order is already created, user can retry payment later
           this.logger.error(`Payment initiation failed for order ${savedOrder.id}: ${paymentError.message}`);
+          paymentInstructions = {
+            error: 'Payment initiation failed. Please retry payment.',
+            orderId: savedOrder.id,
+          };
+        }
+      } else if (checkoutDto.payment.method === 'card') {
+        // Use IntaSend for card payments
+        try {
+          // Get customer info from first attendee or order metadata
+          const firstItem = checkoutDto.items[0];
+          const firstAttendee = firstItem.attendees?.[0];
+          const customerInfo = {
+            firstName: firstAttendee?.name?.split(' ')[0] || 'Customer',
+            lastName: firstAttendee?.name?.split(' ').slice(1).join(' ') || '',
+            email: firstAttendee?.email || savedOrder.metadata?.customerEmail || 'customer@tickit.co.ke',
+            phoneNumber: firstAttendee?.phoneNumber || checkoutDto.payment.metadata?.phone,
+          };
+
+          const paymentResult = await this.paymentsService.initiateIntasendPayment(
+            savedOrder.id,
+            customerInfo,
+            undefined, // amountCents - use order amount
+            'CARD-PAYMENT',
+            undefined, // redirectUrl - will use default
+          );
+
+          paymentInstructions = {
+            checkoutToken: paymentResult.invoiceId, // IntaSend invoice ID
+            invoiceId: paymentResult.invoiceId, // For backward compatibility
+            reference: paymentResult.invoiceId, // IntaSend invoice ID
+            checkoutUrl: paymentResult.checkoutUrl,
+            authorizationUrl: paymentResult.checkoutUrl, // For backward compatibility
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
+            provider: 'intasend',
+          };
+        } catch (paymentError: any) {
+          this.logger.error(`Card payment initiation failed for order ${savedOrder.id}: ${paymentError.message}`);
           paymentInstructions = {
             error: 'Payment initiation failed. Please retry payment.',
             orderId: savedOrder.id,
@@ -410,6 +542,15 @@ export class OrdersService {
       // Release seat holds on error
       for (const holdId of holdIds) {
         await this.redisService.releaseSeatHold(holdId);
+      }
+
+      // Release seat reservations on error
+      if (reservedSeatIds.length > 0) {
+        try {
+          await this.seatMapsService.releaseReservation(reservedSeatIds);
+        } catch (releaseError) {
+          this.logger.error(`Failed to release seat reservations: ${releaseError}`);
+        }
       }
       
       throw error;
@@ -503,6 +644,35 @@ export class OrdersService {
     // Generate tickets (this is the critical path - must be fast)
     await this.generateTickets(order);
 
+    // Mark seats as sold if order has seat selections
+    const allSeatIds: string[] = [];
+    for (const item of order.items || []) {
+      if (item.metadata?.seatIds && Array.isArray(item.metadata.seatIds)) {
+        allSeatIds.push(...item.metadata.seatIds);
+      }
+    }
+
+    if (allSeatIds.length > 0) {
+      // Get tickets for this order to link seats
+      const tickets = await this.ticketRepository.find({
+        where: { orderItem: { orderId: order.id } },
+        order: { createdAt: 'ASC' },
+      });
+
+      // Link seats to tickets and mark as sold
+      for (let i = 0; i < allSeatIds.length && i < tickets.length; i++) {
+        const seatId = allSeatIds[i];
+        const ticket = tickets[i];
+        
+        // Mark seat as sold with ticket ID
+        try {
+          await this.seatMapsService.markSeatsAsSold([seatId], ticket.id);
+        } catch (error) {
+          this.logger.error(`Failed to mark seat ${seatId} as sold:`, error);
+        }
+      }
+    }
+
     // Create mock payment record if this is a skipPayment operation
     if (userId === 'system') {
       const mockPayment = this.paymentRepository.create({
@@ -593,6 +763,9 @@ export class OrdersService {
       const qrCodePromises: Promise<void>[] = [];
 
       for (const item of orderWithItems.items) {
+        // Get seat IDs for this item if available
+        const seatIds = item.metadata?.seatIds || [];
+        
         for (let i = 0; i < item.quantity; i++) {
           const ticketId = uuidv4();
           const ticketNumber = `TKT${Date.now()}${Math.floor(Math.random() * 1000000)}`;
@@ -603,13 +776,44 @@ export class OrdersService {
             eventId: item.ticketType?.eventId,
           });
 
+          // Get seat info if available
+          const seatId = seatIds[i];
+          let seatSection: string | undefined;
+          let seatRow: string | undefined;
+          let seatNumber: string | undefined;
+
+          if (seatId) {
+            try {
+              // Fetch seat details - we'll get this from the seat entity when marking as sold
+              // For now, just store the seat ID
+            } catch (error) {
+              this.logger.warn(`Failed to fetch seat details for ${seatId}:`, error);
+            }
+          }
+
           // Generate QR code asynchronously with optimized settings for speed
           // Using smaller size and lower error correction for faster generation
           const qrPromise = QRCode.toDataURL(qrPayload, {
             errorCorrectionLevel: 'M', // Medium error correction (faster than 'H')
             margin: 1,
             width: 200, // Smaller size for faster generation
-          }).then((qrCode) => {
+          }).then(async (qrCode) => {
+            // Fetch seat details if seatId is available
+            if (seatId) {
+              try {
+                const seatData = await this.dataSource.getRepository(Seat).findOne({
+                  where: { id: seatId },
+                });
+                if (seatData) {
+                  seatSection = seatData.section;
+                  seatRow = seatData.row;
+                  seatNumber = seatData.number;
+                }
+              } catch (error) {
+                this.logger.warn(`Failed to fetch seat ${seatId} for ticket ${ticketId}:`, error);
+              }
+            }
+
             const ticket = this.ticketRepository.create({
               id: ticketId,
               orderItemId: item.id,
@@ -619,6 +823,10 @@ export class OrdersService {
               qrCode,
               ownerId: order.buyerId,
               status: TicketStatus.ACTIVE,
+              seatId: seatId,
+              seatSection,
+              seatRow,
+              seatNumber,
             });
 
             ticketsToCreate.push({

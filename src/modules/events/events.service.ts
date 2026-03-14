@@ -6,22 +6,28 @@ import {
   Inject,
   forwardRef,
   Logger,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Between, FindOptionsWhere } from 'typeorm';
-import { Event, EventStatus, EventVisibility } from '../../database/entities/event.entity';
-import { Organiser } from '../../database/entities/organiser.entity';
-import { Ticket, TicketStatus } from '../../database/entities/ticket.entity';
-import { User, UserRole } from '../../database/entities/user.entity';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventDto } from './dto/update-event.dto';
-import { EventQueryDto } from './dto/event-query.dto';
-import { EventResponseDto } from './dto/event-response.dto';
-import { RealtimeNotificationService } from '../../common/services/realtime-notification.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType } from '../../database/entities/notification.entity';
-import { NotificationType as NotificationPayloadType } from '../../common/types/notification.types';
-import { v4 as uuidv4 } from 'uuid';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, Like, Between, FindOptionsWhere } from "typeorm";
+import {
+  Event,
+  EventStatus,
+  EventVisibility,
+} from "../../database/entities/event.entity";
+import { Organiser } from "../../database/entities/organiser.entity";
+import { Ticket, TicketStatus } from "../../database/entities/ticket.entity";
+import { User, UserRole } from "../../database/entities/user.entity";
+import { CreateEventDto } from "./dto/create-event.dto";
+import { UpdateEventDto } from "./dto/update-event.dto";
+import { EventQueryDto } from "./dto/event-query.dto";
+import { EventResponseDto } from "./dto/event-response.dto";
+import { RealtimeNotificationService } from "../../common/services/realtime-notification.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../../database/entities/notification.entity";
+import { NotificationType as NotificationPayloadType } from "../../common/types/notification.types";
+import { TicketDesignsService } from "../ticket-designs/ticket-designs.service";
+import { SeatMapsService } from "../seat-maps/seat-maps.service";
+import { v4 as uuidv4 } from "uuid";
 
 @Injectable()
 export class EventsService {
@@ -39,16 +45,24 @@ export class EventsService {
     private notificationService: RealtimeNotificationService,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
+    @Inject(forwardRef(() => TicketDesignsService))
+    private ticketDesignsService: TicketDesignsService,
+    @Inject(forwardRef(() => SeatMapsService))
+    private seatMapsService: SeatMapsService,
   ) {}
 
-  async create(organiserId: string, createEventDto: CreateEventDto, userId: string): Promise<EventResponseDto> {
+  async create(
+    organiserId: string,
+    createEventDto: CreateEventDto,
+    userId: string,
+  ): Promise<EventResponseDto> {
     // Verify organiser exists and user has access
     const organiser = await this.organiserRepository.findOne({
       where: { id: organiserId, ownerId: userId },
     });
 
     if (!organiser) {
-      throw new ForbiddenException('Organiser not found or access denied');
+      throw new ForbiddenException("Organiser not found or access denied");
     }
 
     // Generate slug if not provided
@@ -58,15 +72,61 @@ export class EventsService {
     }
 
     // Check if slug exists
-    const existingEvent = await this.eventRepository.findOne({ where: { slug } });
+    const existingEvent = await this.eventRepository.findOne({
+      where: { slug },
+    });
     if (existingEvent) {
       slug = `${slug}-${Date.now()}`;
     }
 
+    // Validate ticket design if provided
+    if (createEventDto.ticketDesignId) {
+      try {
+        const ticketDesign = await this.ticketDesignsService.findOne(
+          createEventDto.ticketDesignId,
+        );
+        if (ticketDesign.organiserId !== organiserId) {
+          throw new BadRequestException(
+            "Ticket design does not belong to this organiser",
+          );
+        }
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw new BadRequestException("Ticket design not found");
+        }
+        throw error;
+      }
+    }
+
+    // Validate seat map if provided
+    if (createEventDto.seatMapId) {
+      try {
+        const seatMap = await this.seatMapsService.findOne(
+          createEventDto.seatMapId,
+        );
+        if (seatMap.organiserId !== organiserId) {
+          throw new BadRequestException(
+            "Seat map does not belong to this organiser",
+          );
+        }
+        if (seatMap.eventId && seatMap.eventId !== createEventDto.seatMapId) {
+          throw new BadRequestException(
+            "Seat map is already assigned to another event",
+          );
+        }
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw new BadRequestException("Seat map not found");
+        }
+        throw error;
+      }
+    }
+
     // Set status to PENDING_APPROVAL if trying to publish
-    const initialStatus = createEventDto.status === EventStatus.PUBLISHED
-      ? EventStatus.PENDING_APPROVAL
-      : (createEventDto.status || EventStatus.DRAFT);
+    const initialStatus =
+      createEventDto.status === EventStatus.PUBLISHED
+        ? EventStatus.PENDING_APPROVAL
+        : createEventDto.status || EventStatus.DRAFT;
 
     const event = this.eventRepository.create({
       id: uuidv4(),
@@ -76,17 +136,21 @@ export class EventsService {
       status: initialStatus,
       startsAt: new Date(createEventDto.startsAt),
       endsAt: new Date(createEventDto.endsAt),
-      salesStartsAt: createEventDto.salesStartsAt ? new Date(createEventDto.salesStartsAt) : undefined,
-      salesEndsAt: createEventDto.salesEndsAt ? new Date(createEventDto.salesEndsAt) : undefined,
+      salesStartsAt: createEventDto.salesStartsAt
+        ? new Date(createEventDto.salesStartsAt)
+        : undefined,
+      salesEndsAt: createEventDto.salesEndsAt
+        ? new Date(createEventDto.salesEndsAt)
+        : undefined,
     });
 
     const saved = await this.eventRepository.save(event);
     const eventEntity = await this.eventRepository.findOne({
       where: { id: saved.id },
-      relations: ['organiser', 'venue'],
+      relations: ["organiser", "venue"],
     });
     if (!eventEntity) {
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
     // Send approval request notification if status is PENDING_APPROVAL
@@ -95,26 +159,51 @@ export class EventsService {
         saved.id,
         eventEntity.title,
         organiserId,
-        organiser?.name || eventEntity.organiser?.name || 'Organiser',
+        organiser?.name || eventEntity.organiser?.name || "Organiser",
       );
     }
 
     return this.toResponseDto(eventEntity);
   }
 
-  async findAll(query: EventQueryDto, userId?: string): Promise<{
+  async findAll(
+    query: EventQueryDto,
+    userId?: string,
+  ): Promise<{
     data: EventResponseDto[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
   }> {
-    const { page = 1, limit = 20, search, category, tag, status, visibility, organiserId, venueId, startsFrom, startsTo, city, sortBy = 'startsAt', sortOrder = 'ASC', featured, livePulse, hotRightNow } = query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      category,
+      tag,
+      status,
+      visibility,
+      organiserId,
+      venueId,
+      startsFrom,
+      startsTo,
+      city,
+      sortBy = "startsAt",
+      sortOrder = "ASC",
+      featured,
+      livePulse,
+      hotRightNow,
+    } = query;
 
     // Log the incoming query to debug
     this.logger.log(`=== findAll called ===`);
-    this.logger.log(`status: ${status}, userId: ${userId ? userId : 'UNDEFINED/NULL'}, organiserId: ${organiserId}`);
-    this.logger.log(`Full query object: ${JSON.stringify({ status, organiserId, page, limit })}`);
+    this.logger.log(
+      `status: ${status}, userId: ${userId ? userId : "UNDEFINED/NULL"}, organiserId: ${organiserId}`,
+    );
+    this.logger.log(
+      `Full query object: ${JSON.stringify({ status, organiserId, page, limit })}`,
+    );
     this.logger.log(`userId type: ${typeof userId}, value: ${userId}`);
 
     const where: FindOptionsWhere<Event> = {};
@@ -122,46 +211,60 @@ export class EventsService {
     // Visibility filter - only show public events to non-authenticated users
     // BUT: If organiserId is provided, allow status filtering (organizer viewing their own events)
     const isOrganizerRequest = !!organiserId;
-    
+
     if (!userId && !isOrganizerRequest) {
       // For non-authenticated users without organiserId, only show public published events
       where.visibility = EventVisibility.PUBLIC;
       where.status = EventStatus.PUBLISHED;
-      this.logger.log('No userId and no organiserId - applying PUBLIC visibility and PUBLISHED status filter (non-authenticated)');
+      this.logger.log(
+        "No userId and no organiserId - applying PUBLIC visibility and PUBLISHED status filter (non-authenticated)",
+      );
     } else {
       // For authenticated users OR organizer requests, apply filters
       if (userId) {
-        this.logger.log(`Authenticated user (userId: ${userId}) - applying custom filters`);
+        this.logger.log(
+          `Authenticated user (userId: ${userId}) - applying custom filters`,
+        );
       } else {
-        this.logger.log(`Organizer request (organiserId: ${organiserId}) - applying custom filters (no userId)`);
+        this.logger.log(
+          `Organizer request (organiserId: ${organiserId}) - applying custom filters (no userId)`,
+        );
       }
-      
+
       if (visibility) {
         where.visibility = visibility;
         this.logger.log(`Visibility filter applied: ${visibility}`);
       }
-      
+
       // Status filter - ensure it's properly set
       // IMPORTANT: Only apply status filter if explicitly provided, otherwise show all statuses
       if (status !== undefined && status !== null) {
         // Validate status is a valid EventStatus enum value
         const validStatuses = Object.values(EventStatus);
         const statusValue = status as EventStatus;
-        
-        this.logger.log(`Status filter received: ${status} (raw), ${statusValue} (cast), valid: ${validStatuses.includes(statusValue)}`);
-        this.logger.log(`Valid statuses: ${validStatuses.join(', ')}`);
-        
+
+        this.logger.log(
+          `Status filter received: ${status} (raw), ${statusValue} (cast), valid: ${validStatuses.includes(statusValue)}`,
+        );
+        this.logger.log(`Valid statuses: ${validStatuses.join(", ")}`);
+
         if (validStatuses.includes(statusValue)) {
           // Explicitly set the status in the where clause
           where.status = statusValue;
-          this.logger.log(`✓ Status filter APPLIED to where clause: ${statusValue}`);
+          this.logger.log(
+            `✓ Status filter APPLIED to where clause: ${statusValue}`,
+          );
         } else {
           // Log invalid status but don't throw - just ignore the filter
-          this.logger.warn(`✗ Invalid status filter received: ${status}. Valid values: ${validStatuses.join(', ')}`);
+          this.logger.warn(
+            `✗ Invalid status filter received: ${status}. Valid values: ${validStatuses.join(", ")}`,
+          );
           this.logger.warn(`Status will be ignored - showing all statuses`);
         }
       } else {
-        this.logger.log(`No status filter provided (status: ${status}) - showing all statuses`);
+        this.logger.log(
+          `No status filter provided (status: ${status}) - showing all statuses`,
+        );
       }
     }
 
@@ -181,28 +284,40 @@ export class EventsService {
     if (startsFrom || startsTo) {
       where.startsAt = Between(
         startsFrom ? new Date(startsFrom) : new Date(0),
-        startsTo ? new Date(startsTo) : new Date('2099-12-31'),
+        startsTo ? new Date(startsTo) : new Date("2099-12-31"),
       );
     }
 
     // Log the where clause before query execution (after all conditions are set)
     this.logger.log(`Final where clause: ${JSON.stringify(where, null, 2)}`);
-    this.logger.log(`Query params: page=${page}, limit=${limit}, status=${status}, organiserId=${organiserId}, userId=${userId ? 'EXISTS' : 'MISSING'}`);
+    this.logger.log(
+      `Query params: page=${page}, limit=${limit}, status=${status}, organiserId=${organiserId}, userId=${userId ? "EXISTS" : "MISSING"}`,
+    );
 
     // Ensure status is properly set in where clause if provided
     if (userId) {
       if (status) {
         if (where.status) {
-          this.logger.log(`✓ Status filter IS SET in where clause: ${where.status}`);
+          this.logger.log(
+            `✓ Status filter IS SET in where clause: ${where.status}`,
+          );
           if (where.status !== status) {
-            this.logger.error(`✗✗✗ STATUS MISMATCH! Requested: ${status}, but where.status is: ${where.status}`);
+            this.logger.error(
+              `✗✗✗ STATUS MISMATCH! Requested: ${status}, but where.status is: ${where.status}`,
+            );
           }
         } else {
-          this.logger.error(`✗✗✗ Status filter NOT SET in where clause despite status=${status} being provided!`);
-          this.logger.error(`This means the status validation failed or the status was not applied correctly.`);
+          this.logger.error(
+            `✗✗✗ Status filter NOT SET in where clause despite status=${status} being provided!`,
+          );
+          this.logger.error(
+            `This means the status validation failed or the status was not applied correctly.`,
+          );
         }
       } else {
-        this.logger.log(`No status filter requested - where.status should be undefined`);
+        this.logger.log(
+          `No status filter requested - where.status should be undefined`,
+        );
       }
     } else {
       this.logger.log(`No userId - using default PUBLIC/PUBLISHED filters`);
@@ -210,7 +325,7 @@ export class EventsService {
 
     const [events, total] = await this.eventRepository.findAndCount({
       where,
-      relations: ['organiser', 'venue', 'ticketTypes'],
+      relations: ["organiser", "venue", "ticketTypes"],
       order: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
@@ -218,21 +333,37 @@ export class EventsService {
 
     // Log results for debugging
     if (status) {
-      const statusCounts = events.reduce((acc, e) => {
-        acc[e.status] = (acc[e.status] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      this.logger.log(`Query returned ${events.length} events. Requested status: ${status}. Actual statuses: ${JSON.stringify(statusCounts)}`);
-      
+      const statusCounts = events.reduce(
+        (acc, e) => {
+          acc[e.status] = (acc[e.status] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+      this.logger.log(
+        `Query returned ${events.length} events. Requested status: ${status}. Actual statuses: ${JSON.stringify(statusCounts)}`,
+      );
+
       // Warn if we got events with different status than requested
-      if (where.status && events.some(e => e.status !== where.status)) {
-        this.logger.error(`✗✗✗ STATUS FILTER MISMATCH! Requested: ${where.status}, but got events with different statuses!`);
-        this.logger.error(`First few event statuses: ${events.slice(0, 5).map(e => e.status).join(', ')}`);
+      if (where.status && events.some((e) => e.status !== where.status)) {
+        this.logger.error(
+          `✗✗✗ STATUS FILTER MISMATCH! Requested: ${where.status}, but got events with different statuses!`,
+        );
+        this.logger.error(
+          `First few event statuses: ${events
+            .slice(0, 5)
+            .map((e) => e.status)
+            .join(", ")}`,
+        );
       } else if (where.status) {
-        this.logger.log(`✓ All returned events match requested status: ${where.status}`);
+        this.logger.log(
+          `✓ All returned events match requested status: ${where.status}`,
+        );
       }
     } else {
-      this.logger.log(`Query returned ${events.length} events (no status filter)`);
+      this.logger.log(
+        `Query returned ${events.length} events (no status filter)`,
+      );
     }
 
     // Filter by tag if provided
@@ -251,25 +382,30 @@ export class EventsService {
   }
 
   async findOne(idOrSlug: string, userId?: string): Promise<EventResponseDto> {
-    this.logger.debug(`Finding event: ${idOrSlug}, userId: ${userId || 'undefined'}`);
-    
+    this.logger.debug(
+      `Finding event: ${idOrSlug}, userId: ${userId || "undefined"}`,
+    );
+
     // Try to find by ID first (UUID format)
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        idOrSlug,
+      );
+
     let event;
     if (isUuid) {
       // Try ID first
       event = await this.eventRepository.findOne({
         where: { id: idOrSlug },
-        relations: ['organiser', 'venue', 'ticketTypes'],
+        relations: ["organiser", "venue", "ticketTypes"],
       });
     }
-    
+
     // If not found by ID or not a UUID, try slug
     if (!event) {
       event = await this.eventRepository.findOne({
         where: { slug: idOrSlug },
-        relations: ['organiser', 'venue', 'ticketTypes'],
+        relations: ["organiser", "venue", "ticketTypes"],
       });
     }
 
@@ -279,56 +415,68 @@ export class EventsService {
     if (!event) {
       // For findOne, we check all events since authenticated users may access non-published events
       const events = await this.eventRepository.find({
-        relations: ['organiser', 'venue', 'ticketTypes'],
+        relations: ["organiser", "venue", "ticketTypes"],
       });
       const foundEvent = events.find((e) => {
         const oldSlugs = e.metadata?.oldSlugs || [];
         return oldSlugs.includes(idOrSlug);
       });
-      
+
       if (foundEvent) {
         event = foundEvent;
-        this.logger.debug(`Event found by old slug: ${idOrSlug} -> ${event.slug}`);
+        this.logger.debug(
+          `Event found by old slug: ${idOrSlug} -> ${event.slug}`,
+        );
       }
     }
 
     if (!event) {
       this.logger.debug(`Event not found in database: ${idOrSlug}`);
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
-    this.logger.debug(`Event found: ${event.id}, status: ${event.status}, visibility: ${event.visibility}, organiserId: ${event.organiserId}`);
+    this.logger.debug(
+      `Event found: ${event.id}, status: ${event.status}, visibility: ${event.visibility}, organiserId: ${event.organiserId}`,
+    );
 
     // Check visibility and access
     // Public published events are visible to everyone
-    if (event.visibility === EventVisibility.PUBLIC && event.status === EventStatus.PUBLISHED) {
+    if (
+      event.visibility === EventVisibility.PUBLIC &&
+      event.status === EventStatus.PUBLISHED
+    ) {
       return this.toResponseDto(event);
     }
 
     // For non-public or non-published events, require authentication
     if (!userId) {
-      this.logger.debug(`Access denied: userId is undefined for event ${event.id} (status: ${event.status}, visibility: ${event.visibility})`);
-      throw new NotFoundException('Event not found');
+      this.logger.debug(
+        `Access denied: userId is undefined for event ${event.id} (status: ${event.status}, visibility: ${event.visibility})`,
+      );
+      throw new NotFoundException("Event not found");
     }
 
     // Check if user is the organiser (owner) of the event
     // For DRAFT, PENDING_APPROVAL, or private events, only the owner can view
-    if (event.status !== EventStatus.PUBLISHED || event.visibility !== EventVisibility.PUBLIC) {
+    if (
+      event.status !== EventStatus.PUBLISHED ||
+      event.visibility !== EventVisibility.PUBLIC
+    ) {
       // Ensure organiser relation is loaded
       if (!event.organiser) {
         event = await this.eventRepository.findOne({
           where: { id: event.id },
-          relations: ['organiser', 'venue', 'ticketTypes'],
+          relations: ["organiser", "venue", "ticketTypes"],
         });
         if (!event || !event.organiser) {
-          throw new NotFoundException('Event not found');
+          throw new NotFoundException("Event not found");
         }
       }
 
       // Check if user owns the organiser (and thus the event)
       if (event.organiser.ownerId !== userId) {
         // User is not the owner, treat as not found for security
-        throw new NotFoundException('Event not found');
+        throw new NotFoundException("Event not found");
       }
     }
 
@@ -336,11 +484,13 @@ export class EventsService {
   }
 
   async findBySlug(slug: string, userId?: string): Promise<EventResponseDto> {
-    this.logger.debug(`Finding event by slug: ${slug}, userId: ${userId || 'undefined'}`);
-    
+    this.logger.debug(
+      `Finding event by slug: ${slug}, userId: ${userId || "undefined"}`,
+    );
+
     let event = await this.eventRepository.findOne({
       where: { slug },
-      relations: ['organiser', 'venue', 'ticketTypes'],
+      relations: ["organiser", "venue", "ticketTypes"],
     });
 
     // If not found by current slug, check old slugs in metadata
@@ -348,14 +498,14 @@ export class EventsService {
     // Consider adding a slug_redirects table for better performance at scale
     if (!event) {
       const events = await this.eventRepository.find({
-        relations: ['organiser', 'venue', 'ticketTypes'],
+        relations: ["organiser", "venue", "ticketTypes"],
         where: { status: EventStatus.PUBLISHED }, // Only check published events for performance
       });
       const foundEvent = events.find((e) => {
         const oldSlugs = e.metadata?.oldSlugs || [];
         return oldSlugs.includes(slug);
       });
-      
+
       if (foundEvent) {
         event = foundEvent;
         this.logger.debug(`Event found by old slug: ${slug} -> ${event.slug}`);
@@ -364,85 +514,107 @@ export class EventsService {
 
     if (!event) {
       this.logger.debug(`Event not found in database by slug: ${slug}`);
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
-    this.logger.debug(`Event found: ${event.id}, status: ${event.status}, visibility: ${event.visibility}, organiserId: ${event.organiserId}`);
+    this.logger.debug(
+      `Event found: ${event.id}, status: ${event.status}, visibility: ${event.visibility}, organiserId: ${event.organiserId}`,
+    );
 
     // Check visibility and access
     // Public published events are visible to everyone
-    if (event.visibility === EventVisibility.PUBLIC && event.status === EventStatus.PUBLISHED) {
+    if (
+      event.visibility === EventVisibility.PUBLIC &&
+      event.status === EventStatus.PUBLISHED
+    ) {
       return this.toResponseDto(event);
     }
 
     // For non-public or non-published events, require authentication
     if (!userId) {
-      this.logger.debug(`Access denied: userId is undefined for event ${event.id} (status: ${event.status}, visibility: ${event.visibility})`);
-      throw new NotFoundException('Event not found');
+      this.logger.debug(
+        `Access denied: userId is undefined for event ${event.id} (status: ${event.status}, visibility: ${event.visibility})`,
+      );
+      throw new NotFoundException("Event not found");
     }
 
     // Check if user is the organiser (owner) of the event
     // For DRAFT, PENDING_APPROVAL, or private events, only the owner can view
-    if (event.status !== EventStatus.PUBLISHED || event.visibility !== EventVisibility.PUBLIC) {
+    if (
+      event.status !== EventStatus.PUBLISHED ||
+      event.visibility !== EventVisibility.PUBLIC
+    ) {
       // Ensure organiser relation is loaded
       if (!event.organiser) {
         event = await this.eventRepository.findOne({
           where: { id: event.id },
-          relations: ['organiser', 'venue', 'ticketTypes'],
+          relations: ["organiser", "venue", "ticketTypes"],
         });
         if (!event || !event.organiser) {
-          throw new NotFoundException('Event not found');
+          throw new NotFoundException("Event not found");
         }
       }
 
       // Check if user owns the organiser (and thus the event)
       if (event.organiser.ownerId !== userId) {
-        this.logger.debug(`Access denied: user ${userId} does not own organiser ${event.organiserId} (ownerId: ${event.organiser.ownerId})`);
+        this.logger.debug(
+          `Access denied: user ${userId} does not own organiser ${event.organiserId} (ownerId: ${event.organiser.ownerId})`,
+        );
         // User is not the owner, treat as not found for security
-        throw new NotFoundException('Event not found');
+        throw new NotFoundException("Event not found");
       }
     }
 
     return this.toResponseDto(event);
   }
 
-  async update(idOrSlug: string, updateEventDto: UpdateEventDto, userId: string): Promise<EventResponseDto> {
+  async update(
+    idOrSlug: string,
+    updateEventDto: UpdateEventDto,
+    userId: string,
+  ): Promise<EventResponseDto> {
     // Check if it's a UUID or slug
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        idOrSlug,
+      );
+
     let event;
     if (isUuid) {
       // Try ID first
       event = await this.eventRepository.findOne({
         where: { id: idOrSlug },
-        relations: ['organiser'],
+        relations: ["organiser"],
       });
     }
-    
+
     // If not found by ID or not a UUID, try slug
     if (!event) {
       event = await this.eventRepository.findOne({
         where: { slug: idOrSlug },
-        relations: ['organiser'],
+        relations: ["organiser"],
       });
     }
 
     if (!event || !event.organiser) {
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
-    
+
     const id = event.id;
 
     // Check ownership
     if (event.organiser.ownerId !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
 
     // Update slug if title changed
     if (updateEventDto.title && updateEventDto.title !== event.title) {
       const oldSlug = event.slug;
-      const newSlug = updateEventDto.slug || this.generateSlug(updateEventDto.title);
-      const existing = await this.eventRepository.findOne({ where: { slug: newSlug } });
+      const newSlug =
+        updateEventDto.slug || this.generateSlug(updateEventDto.title);
+      const existing = await this.eventRepository.findOne({
+        where: { slug: newSlug },
+      });
       if (existing && existing.id !== id) {
         updateEventDto.slug = `${newSlug}-${Date.now()}`;
       } else {
@@ -463,11 +635,25 @@ export class EventsService {
     }
 
     // Track changes for notifications
-    const newStartsAt = updateEventDto.startsAt ? new Date(updateEventDto.startsAt) : null;
-    const hasDateChange = !!(newStartsAt && newStartsAt.toDateString() !== event.startsAt.toDateString());
-    const hasTimeChange = !!(newStartsAt && newStartsAt.getTime() !== event.startsAt.getTime() && !hasDateChange);
-    const hasVenueChange = !!(updateEventDto.venueId && updateEventDto.venueId !== event.venueId);
-    const isCancelled = !!(updateEventDto.status === EventStatus.CANCELLED && event.status !== EventStatus.CANCELLED);
+    const newStartsAt = updateEventDto.startsAt
+      ? new Date(updateEventDto.startsAt)
+      : null;
+    const hasDateChange = !!(
+      newStartsAt &&
+      newStartsAt.toDateString() !== event.startsAt.toDateString()
+    );
+    const hasTimeChange = !!(
+      newStartsAt &&
+      newStartsAt.getTime() !== event.startsAt.getTime() &&
+      !hasDateChange
+    );
+    const hasVenueChange = !!(
+      updateEventDto.venueId && updateEventDto.venueId !== event.venueId
+    );
+    const isCancelled = !!(
+      updateEventDto.status === EventStatus.CANCELLED &&
+      event.status !== EventStatus.CANCELLED
+    );
 
     // Convert date strings to Date objects
     if (updateEventDto.startsAt) {
@@ -477,10 +663,59 @@ export class EventsService {
       updateEventDto.endsAt = new Date(updateEventDto.endsAt) as any;
     }
     if (updateEventDto.salesStartsAt) {
-      updateEventDto.salesStartsAt = new Date(updateEventDto.salesStartsAt) as any;
+      updateEventDto.salesStartsAt = new Date(
+        updateEventDto.salesStartsAt,
+      ) as any;
     }
     if (updateEventDto.salesEndsAt) {
       updateEventDto.salesEndsAt = new Date(updateEventDto.salesEndsAt) as any;
+    }
+
+    // Validate ticket design if provided
+    if (updateEventDto.ticketDesignId !== undefined) {
+      if (updateEventDto.ticketDesignId) {
+        try {
+          const ticketDesign = await this.ticketDesignsService.findOne(
+            updateEventDto.ticketDesignId,
+          );
+          if (ticketDesign.organiserId !== event.organiserId) {
+            throw new BadRequestException(
+              "Ticket design does not belong to this organiser",
+            );
+          }
+        } catch (error) {
+          if (error instanceof NotFoundException) {
+            throw new BadRequestException("Ticket design not found");
+          }
+          throw error;
+        }
+      }
+    }
+
+    // Validate seat map if provided
+    if (updateEventDto.seatMapId !== undefined) {
+      if (updateEventDto.seatMapId) {
+        try {
+          const seatMap = await this.seatMapsService.findOne(
+            updateEventDto.seatMapId,
+          );
+          if (seatMap.organiserId !== event.organiserId) {
+            throw new BadRequestException(
+              "Seat map does not belong to this organiser",
+            );
+          }
+          if (seatMap.eventId && seatMap.eventId !== id) {
+            throw new BadRequestException(
+              "Seat map is already assigned to another event",
+            );
+          }
+        } catch (error) {
+          if (error instanceof NotFoundException) {
+            throw new BadRequestException("Seat map not found");
+          }
+          throw error;
+        }
+      }
     }
 
     await this.eventRepository.update(id, updateEventDto);
@@ -488,7 +723,10 @@ export class EventsService {
 
     // Notify admins that an organiser has edited an event (async, non-blocking)
     this.notifyAdminsOfEventEdit(updatedEvent, event.organiser).catch((err) => {
-      this.logger.error(`Failed to notify admins of event edit for event ${event.id}:`, err);
+      this.logger.error(
+        `Failed to notify admins of event edit for event ${event.id}:`,
+        err,
+      );
     });
 
     // Notify ticket holders of changes (async, non-blocking)
@@ -501,7 +739,10 @@ export class EventsService {
         event: updatedEvent,
         originalEvent: event,
       }).catch((err) => {
-        console.error(`Failed to notify ticket holders for event ${event.id}:`, err);
+        console.error(
+          `Failed to notify ticket holders for event ${event.id}:`,
+          err,
+        );
       });
     }
 
@@ -511,16 +752,16 @@ export class EventsService {
   async delete(id: string, userId: string): Promise<void> {
     const event = await this.eventRepository.findOne({
       where: { id },
-      relations: ['organiser'],
+      relations: ["organiser"],
     });
 
     if (!event || !event.organiser) {
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
     // Check ownership
     if (event.organiser.ownerId !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
 
     await this.eventRepository.remove(event);
@@ -529,22 +770,25 @@ export class EventsService {
   /**
    * Request approval for an event (move from DRAFT to PENDING_APPROVAL)
    */
-  async requestApproval(eventId: string, userId: string): Promise<EventResponseDto> {
+  async requestApproval(
+    eventId: string,
+    userId: string,
+  ): Promise<EventResponseDto> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },
-      relations: ['organiser', 'venue'],
+      relations: ["organiser", "venue"],
     });
 
     if (!event || !event.organiser) {
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
     if (event.organiser.ownerId !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
 
     if (event.status !== EventStatus.DRAFT) {
-      throw new BadRequestException('Only draft events can request approval');
+      throw new BadRequestException("Only draft events can request approval");
     }
 
     event.status = EventStatus.PENDING_APPROVAL;
@@ -555,7 +799,7 @@ export class EventsService {
       eventId,
       event.title,
       event.organiserId,
-      event.organiser.name || 'Organiser',
+      event.organiser.name || "Organiser",
     );
 
     return this.findOne(eventId, userId);
@@ -564,18 +808,21 @@ export class EventsService {
   /**
    * Approve an event (Admin only)
    */
-  async approveEvent(eventId: string, adminId: string): Promise<EventResponseDto> {
+  async approveEvent(
+    eventId: string,
+    adminId: string,
+  ): Promise<EventResponseDto> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },
-      relations: ['organiser'],
+      relations: ["organiser"],
     });
 
     if (!event || !event.organiser) {
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
     if (event.status !== EventStatus.PENDING_APPROVAL) {
-      throw new BadRequestException('Event is not pending approval');
+      throw new BadRequestException("Event is not pending approval");
     }
 
     event.status = EventStatus.APPROVED;
@@ -595,18 +842,22 @@ export class EventsService {
   /**
    * Reject an event (Admin only)
    */
-  async rejectEvent(eventId: string, adminId: string, reason?: string): Promise<EventResponseDto> {
+  async rejectEvent(
+    eventId: string,
+    adminId: string,
+    reason?: string,
+  ): Promise<EventResponseDto> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },
-      relations: ['organiser'],
+      relations: ["organiser"],
     });
 
     if (!event || !event.organiser) {
-      throw new NotFoundException('Event not found');
+      throw new NotFoundException("Event not found");
     }
 
     if (event.status !== EventStatus.PENDING_APPROVAL) {
-      throw new BadRequestException('Event is not pending approval');
+      throw new BadRequestException("Event is not pending approval");
     }
 
     event.status = EventStatus.REJECTED;
@@ -627,8 +878,8 @@ export class EventsService {
   private generateSlug(title: string): string {
     return title
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
   }
 
   private toResponseDto(event: Event): EventResponseDto {
@@ -701,10 +952,12 @@ export class EventsService {
       // Get all unique ticket holders for this event
       const tickets = await this.ticketRepository.find({
         where: { eventId, status: TicketStatus.ACTIVE },
-        select: ['ownerId'],
+        select: ["ownerId"],
       });
 
-      const uniqueOwnerIds = [...new Set(tickets.map((t) => t.ownerId).filter(Boolean))] as string[];
+      const uniqueOwnerIds = [
+        ...new Set(tickets.map((t) => t.ownerId).filter(Boolean)),
+      ] as string[];
 
       if (uniqueOwnerIds.length === 0) {
         return;
@@ -716,19 +969,19 @@ export class EventsService {
 
       if (changes.isCancelled) {
         notificationType = NotificationType.EVENT_CANCELLED;
-        title = 'Event Cancelled';
+        title = "Event Cancelled";
         message = `The event "${changes.event.title}" has been cancelled. Your tickets will be refunded.`;
       } else if (changes.hasDateChange) {
         notificationType = NotificationType.EVENT_DATE_CHANGE;
-        title = 'Event Date Changed';
+        title = "Event Date Changed";
         message = `The date for "${changes.event.title}" has been updated. Please check the new date.`;
       } else if (changes.hasTimeChange) {
         notificationType = NotificationType.EVENT_TIME_CHANGE;
-        title = 'Event Time Changed';
+        title = "Event Time Changed";
         message = `The time for "${changes.event.title}" has been updated. Please check the new time.`;
       } else if (changes.hasVenueChange) {
         notificationType = NotificationType.EVENT_VENUE_CHANGE;
-        title = 'Event Venue Changed';
+        title = "Event Venue Changed";
         message = `The venue for "${changes.event.title}" has been updated. Please check the new location.`;
       } else {
         return;
@@ -750,7 +1003,10 @@ export class EventsService {
 
       await Promise.allSettled(notificationPromises);
     } catch (error) {
-      console.error(`Error notifying ticket holders for event ${eventId}:`, error);
+      console.error(
+        `Error notifying ticket holders for event ${eventId}:`,
+        error,
+      );
     }
   }
 
@@ -765,11 +1021,11 @@ export class EventsService {
       // Get all admin users
       const adminUsers = await this.userRepository.find({
         where: { activeRole: UserRole.ADMIN },
-        select: ['id'],
+        select: ["id"],
       });
 
       if (adminUsers.length === 0) {
-        this.logger.warn('No admin users found to notify about event edit');
+        this.logger.warn("No admin users found to notify about event edit");
         return;
       }
 
@@ -777,7 +1033,7 @@ export class EventsService {
       await this.notificationService.notifyAdmins({
         id: `event-edit-${event.id}-${Date.now()}`,
         type: NotificationPayloadType.SYSTEM_ALERT,
-        title: 'Event Edited by Organiser',
+        title: "Event Edited by Organiser",
         message: `${organiser.name} has edited the event "${event.title}"`,
         eventId: event.id,
         metadata: {
@@ -785,7 +1041,7 @@ export class EventsService {
           organiserName: organiser.name,
           eventTitle: event.title,
           eventSlug: event.slug,
-          action: 'view',
+          action: "view",
           link: `/admin/events/${event.id}`,
         },
         timestamp: new Date(),
@@ -795,7 +1051,7 @@ export class EventsService {
       const notificationPromises = adminUsers.map((admin) =>
         this.notificationsService.createNotification({
           userId: admin.id,
-          title: 'Event Edited by Organiser',
+          title: "Event Edited by Organiser",
           message: `${organiser.name} has edited the event "${event.title}"`,
           type: NotificationType.SYSTEM_ALERT,
           metadata: {
@@ -810,10 +1066,329 @@ export class EventsService {
       );
 
       await Promise.allSettled(notificationPromises);
-      this.logger.log(`Notified ${adminUsers.length} admin(s) about event edit: ${event.id}`);
+      this.logger.log(
+        `Notified ${adminUsers.length} admin(s) about event edit: ${event.id}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to notify admins of event edit: ${error.message}`);
+      this.logger.error(
+        `Failed to notify admins of event edit: ${error.message}`,
+      );
     }
   }
-}
 
+  // Admin-specific methods for event management
+  async findByOrganiserForAdmin(
+    organiserId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      search?: string;
+    },
+  ): Promise<{
+    data: Event[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const { page = 1, limit = 20, status, search } = query;
+
+    console.log("findByOrganiserForAdmin called with:", {
+      organiserId,
+      page,
+      limit,
+      status,
+      search,
+    });
+
+    try {
+      // Verify organiser exists first
+      const organiserExists = await this.eventRepository
+        .createQueryBuilder("event")
+        .where("event.organiserId = :organiserId", { organiserId })
+        .getCount();
+
+      console.log(
+        `Found ${organiserExists} events for organiser ${organiserId}`,
+      );
+
+      // Build basic where conditions
+      const whereCondition: FindOptionsWhere<Event> = { organiserId };
+
+      if (status) {
+        whereCondition.status = status.toUpperCase() as EventStatus;
+        console.log("Applied status filter:", status.toUpperCase());
+      }
+
+      // For search, use a simpler approach with Like
+      let events: Event[];
+      let total: number;
+
+      if (search && search.trim()) {
+        const searchTerm = search.trim();
+        console.log("Applying search filter:", searchTerm);
+
+        // Use Like for compatibility across databases
+        const searchConditions: FindOptionsWhere<Event>[] = [
+          { ...whereCondition, title: Like(`%${searchTerm}%`) },
+          { ...whereCondition, description: Like(`%${searchTerm}%`) },
+        ];
+
+        [events, total] = await this.eventRepository.findAndCount({
+          where: searchConditions,
+          relations: ["organiser", "venue", "ticketTypes"],
+          order: { createdAt: "DESC" },
+          skip: (page - 1) * limit,
+          take: limit,
+        });
+      } else {
+        [events, total] = await this.eventRepository.findAndCount({
+          where: whereCondition,
+          relations: ["organiser", "venue", "ticketTypes"],
+          order: { createdAt: "DESC" },
+          skip: (page - 1) * limit,
+          take: limit,
+        });
+      }
+
+      console.log(
+        `Successfully retrieved ${events.length} events out of ${total} total`,
+      );
+
+      return {
+        data: events,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      console.error("Error in findByOrganiserForAdmin:", error);
+      console.error(
+        "Stack trace:",
+        error instanceof Error ? error.stack : "No stack trace",
+      );
+      console.error("Query parameters that caused error:", {
+        organiserId,
+        page,
+        limit,
+        status,
+        search,
+      });
+
+      // Log the specific error type
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+      }
+
+      // Return empty result instead of throwing to prevent 500 errors
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      };
+    }
+  }
+
+  async publishEventAsAdmin(eventId: string, adminId: string): Promise<Event> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "organiser.owner"],
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    if (event.status !== EventStatus.APPROVED) {
+      throw new BadRequestException("Event must be approved before publishing");
+    }
+
+    await this.eventRepository.update(eventId, {
+      status: EventStatus.PUBLISHED,
+      metadata: {
+        ...event.metadata,
+        publishedByAdmin: adminId,
+        publishedAt: new Date().toISOString(),
+      } as any,
+    });
+
+    // Notify organiser
+    if (event.organiser?.owner) {
+      await this.notificationsService.createNotification({
+        userId: event.organiser.owner.id,
+        title: "Event Published",
+        message: `Your event "${event.title}" has been published and is now live`,
+        type: NotificationType.SYSTEM_ALERT,
+        metadata: {
+          eventId: event.id,
+          eventTitle: event.title,
+          link: `/events/${event.slug}`,
+        },
+      });
+    }
+
+    const result = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "venue", "ticketTypes"],
+    });
+    return result!;
+  }
+
+  async unpublishEventAsAdmin(
+    eventId: string,
+    reason?: string,
+    adminId?: string,
+  ): Promise<Event> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "organiser.owner"],
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    if (event.status !== EventStatus.PUBLISHED) {
+      throw new BadRequestException("Event is not currently published");
+    }
+
+    await this.eventRepository.update(eventId, {
+      status: EventStatus.APPROVED,
+      metadata: {
+        ...event.metadata,
+        unpublishedByAdmin: adminId,
+        unpublishedAt: new Date().toISOString(),
+        unpublishReason: reason,
+      } as any,
+    });
+
+    // Notify organiser
+    if (event.organiser?.owner) {
+      await this.notificationsService.createNotification({
+        userId: event.organiser.owner.id,
+        title: "Event Unpublished",
+        message: `Your event "${event.title}" has been unpublished. ${reason ? `Reason: ${reason}` : ""}`,
+        type: NotificationType.SYSTEM_ALERT,
+        metadata: {
+          eventId: event.id,
+          eventTitle: event.title,
+          reason,
+          link: `/organiser/events/${event.id}`,
+        },
+      });
+    }
+
+    const result = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "venue", "ticketTypes"],
+    });
+    return result!;
+  }
+
+  async approveEventAsAdmin(
+    eventId: string,
+    notes?: string,
+    adminId?: string,
+  ): Promise<Event> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "organiser.owner"],
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    if (event.status !== EventStatus.PENDING_APPROVAL) {
+      throw new BadRequestException("Event is not pending approval");
+    }
+
+    await this.eventRepository.update(eventId, {
+      status: EventStatus.APPROVED,
+      metadata: {
+        ...event.metadata,
+        approvedByAdmin: adminId,
+        approvedAt: new Date().toISOString(),
+        adminNotes: notes,
+      } as any,
+    });
+
+    // Notify organiser
+    if (event.organiser?.owner) {
+      await this.notificationsService.createNotification({
+        userId: event.organiser.owner.id,
+        title: "Event Approved",
+        message: `Your event "${event.title}" has been approved ${notes ? `with notes: ${notes}` : ""}`,
+        type: NotificationType.EVENT_APPROVED,
+        metadata: {
+          eventId: event.id,
+          eventTitle: event.title,
+          notes,
+          link: `/organiser/events/${event.id}`,
+        },
+      });
+    }
+
+    const result = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "venue", "ticketTypes"],
+    });
+    return result!;
+  }
+
+  async rejectEventAsAdmin(
+    eventId: string,
+    reason: string,
+    adminId?: string,
+  ): Promise<Event> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "organiser.owner"],
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    if (event.status !== EventStatus.PENDING_APPROVAL) {
+      throw new BadRequestException("Event is not pending approval");
+    }
+
+    await this.eventRepository.update(eventId, {
+      status: EventStatus.REJECTED,
+      metadata: {
+        ...event.metadata,
+        rejectedByAdmin: adminId,
+        rejectedAt: new Date().toISOString(),
+        rejectionReason: reason,
+      } as any,
+    });
+
+    // Notify organiser
+    if (event.organiser?.owner) {
+      await this.notificationsService.createNotification({
+        userId: event.organiser.owner.id,
+        title: "Event Rejected",
+        message: `Your event "${event.title}" has been rejected. Reason: ${reason}`,
+        type: NotificationType.EVENT_REJECTED,
+        metadata: {
+          eventId: event.id,
+          eventTitle: event.title,
+          reason,
+          link: `/organiser/events/${event.id}`,
+        },
+      });
+    }
+
+    const result = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["organiser", "venue", "ticketTypes"],
+    });
+    return result!;
+  }
+}

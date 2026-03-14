@@ -129,7 +129,12 @@ export class NotificationsService {
     }
 
     if (isRead !== undefined) {
-      queryBuilder.andWhere('notification.isRead = :isRead', { isRead });
+      // Ensure it's a proper boolean (DTO should have transformed it, but safety check)
+      const isReadBoolean = typeof isRead === 'boolean' 
+        ? isRead 
+        : (isRead === 'true' || isRead === true);
+      this.logger.debug(`Filtering notifications by isRead: ${isReadBoolean} (original: ${isRead}, type: ${typeof isRead})`);
+      queryBuilder.andWhere('notification.isRead = :isRead', { isRead: isReadBoolean });
     }
 
     const [data, total] = await queryBuilder.getManyAndCount();

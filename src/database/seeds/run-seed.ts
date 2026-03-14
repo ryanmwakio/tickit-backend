@@ -2,6 +2,7 @@ import { AppDataSource } from '../data-source';
 import { seedUsers } from './seed-users';
 import { seedEvents } from './seed-events';
 import { seedTickets } from './seed-tickets';
+import { seedCheapEvents } from './seed-cheap-events';
 
 async function runSeeds() {
   try {
@@ -20,6 +21,9 @@ async function runSeeds() {
     if (seedType === 'events') {
       // Seed events only
       await seedEvents(AppDataSource);
+    } else if (seedType === 'cheap-events') {
+      // Seed cheap events (KES 1.00) only
+      await seedCheapEvents(AppDataSource);
     } else if (seedType === 'users') {
       // Seed users only
       await seedUsers(AppDataSource);

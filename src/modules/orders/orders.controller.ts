@@ -83,11 +83,13 @@ export class OrdersController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get order by ID' })
+  @Public() // Allow guest access for order status checking
+  @ApiOperation({ summary: 'Get order by ID (supports guest checkout)' })
   @ApiResponse({ status: 200, description: 'Order details' })
   @ApiResponse({ status: 404, description: 'Order not found' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.ordersService.findOne(id, user.id);
+  async findOne(@Param() params: UuidParamDto, @CurrentUser() user: User | undefined) {
+    const buyerId = user?.id || undefined;
+    return this.ordersService.findOne(params.id, buyerId);
   }
 
   @Post(':id/resend')

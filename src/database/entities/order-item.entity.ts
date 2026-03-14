@@ -45,6 +45,9 @@ export class OrderItem {
   @Column({ type: 'bigint' })
   totalPriceCents: number;
 
+  @Column({ type: 'json', nullable: true })
+  metadata?: Record<string, any>;
+
   @CreateDateColumn()
   createdAt: Date;
 

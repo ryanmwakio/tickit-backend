@@ -53,10 +53,14 @@ export class TicketsController {
   }
 
   @Get('number/:ticketNumber')
-  @ApiOperation({ summary: 'Get ticket by ticket number' })
+  @ApiOperation({ summary: 'Get ticket by ticket number (owner only)' })
   @ApiResponse({ status: 200, description: 'Ticket details' })
-  async findByTicketNumber(@Param('ticketNumber') ticketNumber: string) {
-    return this.ticketsService.findByTicketNumber(ticketNumber);
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  async findByTicketNumber(
+    @Param('ticketNumber') ticketNumber: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.ticketsService.findByTicketNumber(ticketNumber, user.id);
   }
 
   @Post(':id/transfer')

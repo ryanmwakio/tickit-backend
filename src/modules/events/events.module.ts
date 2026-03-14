@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtModule } from "@nestjs/jwt";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -12,6 +12,8 @@ import { Order } from "../../database/entities/order.entity";
 import { User } from "../../database/entities/user.entity";
 import { CommonModule } from "../../common/common.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { TicketDesignsModule } from "../ticket-designs/ticket-designs.module";
+import { SeatMapsModule } from "../seat-maps/seat-maps.module";
 import { OptionalAuthInterceptor } from "../../common/interceptors/optional-auth.interceptor";
 import { PdfService } from "../../common/services/pdf.service";
 
@@ -20,6 +22,9 @@ import { PdfService } from "../../common/services/pdf.service";
     TypeOrmModule.forFeature([Event, Organiser, Ticket, Order, User]),
     CommonModule,
     NotificationsModule,
+    TicketDesignsModule,
+    SeatMapsModule,
+
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: any) => ({

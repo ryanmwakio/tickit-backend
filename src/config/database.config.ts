@@ -14,13 +14,13 @@ export default registerAs(
       throw new Error('Database configuration is incomplete. Please set DB_HOST, DB_USERNAME, DB_PASSWORD, and DB_DATABASE environment variables.');
     }
 
-    // In development, use synchronize to auto-create tables
-    // In production, use migrations (set DB_USE_MIGRATIONS=true to force migrations in dev)
-    const useMigrations = process.env.DB_USE_MIGRATIONS === 'true' || nodeEnv === 'production';
-    // Synchronize will auto-create/update tables in development
-    // If tables already exist with different schema, you may need to drop them first
-    // Set DB_DROP_SCHEMA=true to drop all tables before creating (WARNING: deletes all data!)
-    const synchronize = !useMigrations && nodeEnv === 'development';
+    // Always use migrations to avoid schema conflicts
+    // Set DB_USE_MIGRATIONS=false to enable synchronize (not recommended)
+    // Default to true (use migrations) to prevent schema conflicts
+    const useMigrations = process.env.DB_USE_MIGRATIONS !== 'false';
+    // Disable synchronize by default - use migrations instead
+    // Only enable synchronize if explicitly requested (DB_USE_MIGRATIONS=false)
+    const synchronize = false; // Always false - use migrations instead
 
     return {
       type: 'mysql',

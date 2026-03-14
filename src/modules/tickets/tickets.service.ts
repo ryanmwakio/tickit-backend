@@ -128,7 +128,7 @@ export class TicketsService {
     return ticket;
   }
 
-  async findByTicketNumber(ticketNumber: string): Promise<Ticket> {
+  async findByTicketNumber(ticketNumber: string, userId: string): Promise<Ticket> {
     const ticket = await this.ticketRepository.findOne({
       where: { ticketNumber },
       relations: ['ticketType', 'event', 'owner'],
@@ -136,6 +136,11 @@ export class TicketsService {
 
     if (!ticket) {
       throw new NotFoundException('Ticket not found');
+    }
+
+    // IDOR prevention: only the ticket owner (or guest ticket with no owner) may access by number
+    if (ticket.ownerId && ticket.ownerId !== userId) {
+      throw new ForbiddenException('Access denied');
     }
 
     return ticket;

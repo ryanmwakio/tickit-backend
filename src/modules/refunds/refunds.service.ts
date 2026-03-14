@@ -12,6 +12,7 @@ import { Refund, RefundStatus, RefundPriority } from '../../database/entities/re
 import { Order, OrderStatus } from '../../database/entities/order.entity';
 import { Payment, PaymentStatus } from '../../database/entities/payment.entity';
 import { Ticket, TicketStatus } from '../../database/entities/ticket.entity';
+import { Organiser } from '../../database/entities/organiser.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../../database/entities/notification.entity';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,6 +28,8 @@ export class RefundsService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(Ticket)
     private ticketRepository: Repository<Ticket>,
+    @InjectRepository(Organiser)
+    private organiserRepository: Repository<Organiser>,
     private dataSource: DataSource,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
@@ -153,11 +156,20 @@ export class RefundsService {
     return refund;
   }
 
-  async approve(id: string, processedById: string): Promise<Refund> {
-    const refund = await this.findOne(id);
-
+  async approve(id: string, processedById: string, allowedOrganiserId?: string): Promise<Refund> {
+    const refund = await this.refundRepository.findOne({
+      where: { id },
+      relations: ['order', 'order.buyer', 'processedBy'],
+    });
+    if (!refund) {
+      throw new NotFoundException('Refund not found');
+    }
     if (refund.status !== RefundStatus.PENDING) {
       throw new BadRequestException('Refund is not in pending status');
+    }
+    // Multi-tenant: organisers may only approve refunds for their own events
+    if (allowedOrganiserId != null && refund.order?.organiserId !== allowedOrganiserId) {
+      throw new ForbiddenException('Access denied: refund is not for your organiser account');
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -240,11 +252,20 @@ export class RefundsService {
     }
   }
 
-  async reject(id: string, processedById: string, reason?: string): Promise<Refund> {
-    const refund = await this.findOne(id);
-
+  async reject(id: string, processedById: string, reason?: string, allowedOrganiserId?: string): Promise<Refund> {
+    const refund = await this.refundRepository.findOne({
+      where: { id },
+      relations: ['order', 'order.buyer', 'processedBy'],
+    });
+    if (!refund) {
+      throw new NotFoundException('Refund not found');
+    }
     if (refund.status !== RefundStatus.PENDING) {
       throw new BadRequestException('Refund is not in pending status');
+    }
+    // Multi-tenant: organisers may only reject refunds for their own events
+    if (allowedOrganiserId != null && refund.order?.organiserId !== allowedOrganiserId) {
+      throw new ForbiddenException('Access denied: refund is not for your organiser account');
     }
 
     refund.status = RefundStatus.REJECTED;

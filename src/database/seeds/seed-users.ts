@@ -49,6 +49,19 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
     },
     {
       id: uuidv4(),
+      email: 'admin@tixhub.com',
+      phoneNumber: '+254700000003',
+      password_hash: defaultPassword,
+      firstName: 'Admin',
+      lastName: 'Tixhub',
+      status: UserStatus.ACTIVE,
+      activeRole: UserRole.ADMIN,
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      roleName: 'ADMIN',
+    },
+    {
+      id: uuidv4(),
       email: 'superadmin@tickit.com',
       phoneNumber: '+254700000002',
       password_hash: defaultPassword,
@@ -241,7 +254,7 @@ export async function seedUsers(dataSource: DataSource): Promise<void> {
   console.log(`✅ Seeded ${users.length} users`);
   console.log('\n📝 Default password for all users: Password123!');
   console.log('\n👤 Test Users:');
-  console.log('  Admin: admin@tickit.com / Password123!');
+  console.log('  Admin: admin@tickit.com or admin@tixhub.com / Password123!');
   console.log('  Organiser: organiser1@tickit.com / Password123!');
   console.log('  User: user1@tickit.com / Password123!');
 }

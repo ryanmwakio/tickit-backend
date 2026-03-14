@@ -16,6 +16,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User, UserRole } from '../../database/entities/user.entity';
 import { SupportTicketStatus } from '../../database/entities/support-ticket.entity';
+import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
 
 @ApiTags('support-tickets')
 @Controller('support-tickets')
@@ -27,7 +28,7 @@ export class SupportTicketsController {
   @Post()
   @ApiOperation({ summary: 'Create support ticket' })
   @ApiResponse({ status: 201, description: 'Support ticket created' })
-  async create(@Body() createDto: any, @CurrentUser() user: User) {
+  async create(@Body() createDto: CreateSupportTicketDto, @CurrentUser() user: User) {
     return this.supportTicketsService.create(createDto, user.id);
   }
 
@@ -39,6 +40,19 @@ export class SupportTicketsController {
     @CurrentUser() user: User,
   ) {
     return this.supportTicketsService.findAll(user.id, organiserId);
+  }
+
+  @Get('admin/all')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get all support tickets (Admin only)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, enum: SupportTicketStatus })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Support tickets list' })
+  async findAllAdmin(@Query() query: any) {
+    return this.supportTicketsService.findAllAdmin(query);
   }
 
   @Get(':id')
@@ -69,19 +83,6 @@ export class SupportTicketsController {
     @CurrentUser() user: User,
   ) {
     return this.supportTicketsService.updateStatus(id, status, user.id);
-  }
-
-  @Get('admin/all')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Get all support tickets (Admin only)' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'status', required: false, enum: SupportTicketStatus })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiResponse({ status: 200, description: 'Support tickets list' })
-  async findAllAdmin(@Query() query: any) {
-    return this.supportTicketsService.findAllAdmin(query);
   }
 }
 

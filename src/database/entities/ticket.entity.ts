@@ -84,6 +84,19 @@ export class Ticket {
   @Column({ nullable: true })
   transferredAt?: Date;
 
+  // Seat information (if event has seat map)
+  @Column({ type: 'char', length: 36, nullable: true })
+  seatId?: string;
+
+  @Column({ length: 100, nullable: true })
+  seatSection?: string;
+
+  @Column({ length: 50, nullable: true })
+  seatRow?: string;
+
+  @Column({ length: 50, nullable: true })
+  seatNumber?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import appConfig from './config/app.config';
 import redisConfig from './config/redis.config';
+import intasendConfig from './config/intasend.config';
 import { initDatabase } from './database/init-database';
 
 // Common Module
@@ -20,6 +22,8 @@ import { OrganisersModule } from './modules/organisers/organisers.module';
 import { EventsModule } from './modules/events/events.module';
 import { VenuesModule } from './modules/venues/venues.module';
 import { TicketTypesModule } from './modules/ticket-types/ticket-types.module';
+import { TicketDesignsModule } from './modules/ticket-designs/ticket-designs.module';
+import { SeatMapsModule } from './modules/seat-maps/seat-maps.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderItemsModule } from './modules/order-items/order-items.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
@@ -39,6 +43,7 @@ import { LiveStreamingModule } from './modules/live-streaming/live-streaming.mod
 import { ChatModule } from './modules/chat/chat.module';
 import { FeaturesModule } from './modules/features/features.module';
 import { OrganiserApplicationsModule } from './modules/organiser-applications/organiser-applications.module';
+import { SettingsModule } from './modules/settings/settings.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -47,7 +52,7 @@ import { AppService } from './app.service';
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, appConfig, redisConfig],
+      load: [databaseConfig, jwtConfig, appConfig, redisConfig, intasendConfig],
       envFilePath: ['.env.local', '.env'],
     }),
 
@@ -109,6 +114,8 @@ import { AppService } from './app.service';
     EventsModule,
     VenuesModule,
     TicketTypesModule,
+    TicketDesignsModule,
+    SeatMapsModule,
     OrdersModule,
     OrderItemsModule,
     TicketsModule,
@@ -128,9 +135,16 @@ import { AppService } from './app.service';
     ChatModule,
     FeaturesModule,
     OrganiserApplicationsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
 

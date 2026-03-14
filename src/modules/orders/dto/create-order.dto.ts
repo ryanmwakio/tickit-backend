@@ -17,6 +17,12 @@ export class OrderItemDto {
   @IsArray()
   @IsString({ each: true })
   attendeeNames?: string[];
+
+  @ApiPropertyOptional({ description: 'Selected seat IDs (for events with seat maps)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  seatIds?: string[];
 }
 
 export class CreateOrderDto {

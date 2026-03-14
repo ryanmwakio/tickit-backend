@@ -15,40 +15,40 @@ export class PdfService {
   // Tickit UI Theme - Matching Frontend Design System
   private readonly tixTheme = {
     colors: {
-      // Primary colors from UI theme
-      background: "#f8fafc", // --background from globals.css
-      foreground: "#0f172a", // --foreground from globals.css
-      card: "#ffffff", // --card from globals.css
-      cardSoft: "#f1f5f9", // --card-soft from globals.css
-      muted: "#64748b", // --muted from globals.css
-      accent: "#6366f1", // --accent from globals.css (indigo)
-      accent2: "#0ea5e9", // --accent-2 from globals.css (sky)
-      accent3: "#f97316", // --accent-3 from globals.css (orange)
+      // Black and white theme for clean, professional appearance
+      background: "#ffffff", // Pure white background
+      foreground: "#000000", // Pure black text
+      card: "#ffffff", // White cards
+      cardSoft: "#f8f8f8", // Very light gray for subtle backgrounds
+      muted: "#666666", // Medium gray for secondary text
+      accent: "#000000", // Black accents for emphasis
+      accent2: "#333333", // Dark gray for secondary accents
+      accent3: "#000000", // Black for all accent elements
 
-      // Slate palette for text and UI elements
-      slate50: "#f8fafc",
-      slate100: "#f1f5f9",
-      slate200: "#e2e8f0",
-      slate300: "#cbd5e1",
-      slate400: "#94a3b8",
-      slate500: "#64748b",
-      slate600: "#475569",
-      slate700: "#334155",
-      slate800: "#1e293b",
-      slate900: "#0f172a",
+      // Grayscale palette for text and UI elements
+      slate50: "#ffffff",
+      slate100: "#f8f8f8",
+      slate200: "#e8e8e8",
+      slate300: "#d0d0d0",
+      slate400: "#a0a0a0",
+      slate500: "#666666",
+      slate600: "#4a4a4a",
+      slate700: "#333333",
+      slate800: "#1a1a1a",
+      slate900: "#000000",
 
-      // Status colors
-      success: "#10b981", // emerald-500
-      warning: "#f59e0b", // amber-500
-      error: "#ef4444", // red-500
+      // Status colors in grayscale
+      success: "#000000", // Black for success
+      warning: "#333333", // Dark gray for warning
+      error: "#000000", // Black for error
 
       // Stroke and borders
-      stroke: "rgba(15, 23, 42, 0.08)", // --stroke from globals.css
-      border: "#e2e8f0", // slate-200
+      stroke: "#e0e0e0", // Light gray strokes
+      border: "#d0d0d0", // Light gray borders
 
       // Shadows
-      shadow: "rgba(15, 23, 42, 0.08)",
-      shadowDark: "rgba(15, 23, 42, 0.12)",
+      shadow: "#000000",
+      shadowDark: "#000000",
     },
     fonts: {
       regular: "Helvetica",
@@ -343,31 +343,48 @@ export class PdfService {
   }
 
   private addTicketDetails(doc: any, data: any, startY: number): number {
-    // Section header with UI theme styling
-    this.addUICard(
-      doc,
-      40,
-      startY,
-      doc.page.width - 80,
-      40,
-      "Ticket Information",
-    );
-    const currentY = startY + 60;
+    const margin = 40;
+
+    // Simple section header
+    doc
+      .fontSize(14)
+      .font(this.tixTheme.fonts.bold)
+      .fillColor(this.tixTheme.colors.foreground)
+      .text("TICKET INFORMATION", margin, startY);
+
+    // Clean underline
+    doc.rect(margin, startY + 20, 150, 2).fill(this.tixTheme.colors.foreground);
+
+    let currentY = startY + 40;
 
     const details = [
-      { type: "user", label: "Attendee", value: data.attendeeName },
-      { type: "ticket", label: "Type", value: data.ticketType },
-      { type: "calendar", label: "Date", value: data.eventDate },
-      { type: "location", label: "Venue", value: data.eventLocation },
-      { type: "price", label: "Price", value: data.price },
-      { type: "order", label: "Order", value: data.orderNumber },
+      { label: "ATTENDEE", value: data.attendeeName },
+      { label: "TYPE", value: data.ticketType },
+      { label: "DATE", value: data.eventDate },
+      { label: "VENUE", value: data.eventLocation },
+      { label: "PRICE", value: data.price },
+      { label: "ORDER", value: data.orderNumber },
     ];
 
-    details.forEach((detail, index) => {
-      this.addDetailRow(doc, detail, currentY + index * 30, 60, index);
+    details.forEach((detail) => {
+      // Label
+      doc
+        .fontSize(10)
+        .font(this.tixTheme.fonts.bold)
+        .fillColor(this.tixTheme.colors.muted)
+        .text(detail.label + ":", margin, currentY);
+
+      // Value
+      doc
+        .fontSize(12)
+        .font(this.tixTheme.fonts.regular)
+        .fillColor(this.tixTheme.colors.foreground)
+        .text(detail.value, margin + 80, currentY);
+
+      currentY += 24;
     });
 
-    return currentY + details.length * 30 + 40;
+    return currentY + 20;
   }
 
   private addTicketFooter(doc: any): void {
@@ -408,101 +425,125 @@ export class PdfService {
   // EVENT BRIEF COMPONENTS
 
   private addEventBriefHeader(doc: any, data: any): number {
-    const headerHeight = 220;
+    const headerHeight = 180;
 
-    // Background matching UI radial gradient
+    // Clean white background with black border
     doc
       .rect(0, 0, doc.page.width, headerHeight)
-      .fill(this.tixTheme.colors.slate900);
+      .fill(this.tixTheme.colors.background)
+      .stroke(this.tixTheme.colors.foreground)
+      .lineWidth(2);
 
-    // Gradient overlay effect similar to UI
+    // Simple black line separator at bottom
     doc
-      .rect(0, headerHeight - 60, doc.page.width, 60)
-      .fill(this.tixTheme.colors.accent)
-      .opacity(0.9);
-    doc.opacity(1);
+      .rect(0, headerHeight - 4, doc.page.width, 4)
+      .fill(this.tixTheme.colors.foreground);
 
-    // Subtle decorative elements matching UI floating style
+    // Tickit branding - simple and clean
     doc
-      .circle(doc.page.width - 80, 60, 50)
-      .fill(this.tixTheme.colors.accent2)
-      .opacity(0.15);
-    doc
-      .circle(80, headerHeight - 50, 35)
-      .fill(this.tixTheme.colors.card)
-      .opacity(0.1);
-    doc.opacity(1);
-
-    // Tickit branding
-    doc
-      .fontSize(18)
+      .fontSize(16)
       .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.card)
-      .text("Tickit", 40, 40);
+      .fillColor(this.tixTheme.colors.foreground)
+      .text("TICKIT EVENT BRIEF", 40, 30);
 
-    // Event title with UI typography hierarchy
+    // Event title - prominent black typography
     doc
-      .fontSize(28)
+      .fontSize(24)
       .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.card);
+      .fillColor(this.tixTheme.colors.foreground);
 
-    this.renderText(doc, data.eventTitle, 40, 80, {
+    this.renderText(doc, data.eventTitle.toUpperCase(), 40, 65, {
       width: doc.page.width - 120,
-      lineGap: 4,
+      lineGap: 2,
     });
 
-    // Organizer with UI muted text styling
+    // Organizer - clean secondary text
     doc
-      .fontSize(14)
+      .fontSize(12)
       .font(this.tixTheme.fonts.regular)
-      .fillColor(this.tixTheme.colors.slate200)
-      .opacity(0.9);
+      .fillColor(this.tixTheme.colors.muted);
 
-    this.renderText(doc, `Organized by ${data.organizer}`, 40, 140);
-    doc.opacity(1);
+    this.renderText(doc, `Organized by ${data.organizer}`, 40, 110);
 
-    // Category badge matching UI design
+    // Category - simple text format
     if (data.category) {
-      this.addCategoryBadge(doc, data.category, 40, 170);
+      doc
+        .fontSize(11)
+        .font(this.tixTheme.fonts.regular)
+        .fillColor(this.tixTheme.colors.foreground)
+        .text(`Category: ${data.category.toUpperCase()}`, 40, 135);
     }
 
-    return headerHeight + 40;
+    // Simple decorative line
+    doc.rect(40, 155, 120, 1).fill(this.tixTheme.colors.foreground);
+
+    return headerHeight + 30;
   }
 
   private addEventInformation(doc: any, data: any, startY: number): number {
     const margin = 40;
 
-    // Section with UI card styling
-    this.addUICard(
-      doc,
-      margin,
-      startY,
-      doc.page.width - margin * 2,
-      50,
-      "Event Details",
-    );
-    let currentY = startY + 70;
+    // Simple section header
+    doc
+      .fontSize(14)
+      .font(this.tixTheme.fonts.bold)
+      .fillColor(this.tixTheme.colors.foreground)
+      .text("EVENT DETAILS", margin, startY);
 
-    // Information with clean text labels (no problematic icons)
+    // Clean underline
+    doc.rect(margin, startY + 20, 120, 2).fill(this.tixTheme.colors.foreground);
+
+    let currentY = startY + 40;
+
+    // Information with clean text labels
     const eventInfo = [
-      { type: "calendar", label: "Date", value: data.eventDate },
-      { type: "clock", label: "Time", value: data.eventTime },
-      { type: "location", label: "Location", value: data.eventLocation },
-      { type: "building", label: "Venue", value: data.venue },
+      { label: "DATE", value: data.eventDate },
+      { label: "TIME", value: data.eventTime },
+      { label: "LOCATION", value: data.eventLocation },
+      { label: "VENUE", value: data.venue },
     ];
 
-    eventInfo.forEach((info, index) => {
-      this.addDetailRow(doc, info, currentY + index * 28, margin + 20, index);
+    eventInfo.forEach((info) => {
+      // Label
+      doc
+        .fontSize(10)
+        .font(this.tixTheme.fonts.bold)
+        .fillColor(this.tixTheme.colors.muted)
+        .text(info.label + ":", margin, currentY);
+
+      // Value
+      doc
+        .fontSize(12)
+        .font(this.tixTheme.fonts.regular)
+        .fillColor(this.tixTheme.colors.foreground)
+        .text(info.value, margin + 80, currentY);
+
+      currentY += 24;
     });
 
-    currentY += eventInfo.length * 28 + 30;
+    currentY += 20;
 
-    // Tags section with UI badge styling
+    // Tags section - simple text format
     if (data.tags && data.tags.length > 0) {
-      currentY = this.addTagsSection(doc, data.tags, currentY, margin);
+      doc
+        .fontSize(10)
+        .font(this.tixTheme.fonts.bold)
+        .fillColor(this.tixTheme.colors.muted)
+        .text("TAGS:", margin, currentY);
+
+      const tagsText = data.tags.join(" | ").toUpperCase();
+      doc
+        .fontSize(11)
+        .font(this.tixTheme.fonts.regular)
+        .fillColor(this.tixTheme.colors.foreground)
+        .text(tagsText, margin + 80, currentY, {
+          width: doc.page.width - margin - 120,
+        });
+
+      currentY += 30;
     }
 
-    return currentY + 30;
+    return currentY + 20;
   }
 
   private addEventDescription(doc: any, data: any, startY: number): number {
@@ -510,43 +551,44 @@ export class PdfService {
 
     const margin = 40;
 
-    // Section card
-    this.addUICard(
-      doc,
-      margin,
-      startY,
-      doc.page.width - margin * 2,
-      50,
-      "About This Event",
-    );
-    const currentY = startY + 70;
+    // Simple section header
+    doc
+      .fontSize(14)
+      .font(this.tixTheme.fonts.bold)
+      .fillColor(this.tixTheme.colors.foreground)
+      .text("ABOUT THIS EVENT", margin, startY);
 
-    // Description with UI text styling
+    // Clean underline
+    doc.rect(margin, startY + 20, 150, 2).fill(this.tixTheme.colors.foreground);
+
+    const currentY = startY + 40;
+
+    // Description with clean black and white styling
     const cleanDescription = this.cleanText(data.description);
     const wrappedText = this.wrapText(
       doc,
       cleanDescription,
-      doc.page.width - margin * 2 - 40,
-      11,
+      doc.page.width - margin * 2,
+      12,
     );
 
     doc
-      .fontSize(11)
+      .fontSize(12)
       .font(this.tixTheme.fonts.regular)
-      .fillColor(this.tixTheme.colors.slate600);
+      .fillColor(this.tixTheme.colors.foreground);
 
-    this.renderText(doc, wrappedText, margin + 20, currentY, {
-      width: doc.page.width - margin * 2 - 40,
-      align: "justify",
+    doc.text(wrappedText, margin, currentY, {
+      width: doc.page.width - margin * 2,
+      align: "left",
       lineGap: 4,
     });
 
     const textHeight = doc.heightOfString(wrappedText, {
-      width: doc.page.width - margin * 2 - 40,
+      width: doc.page.width - margin * 2,
       lineGap: 4,
     });
 
-    return currentY + textHeight + 50;
+    return currentY + textHeight + 30;
   }
 
   private addTicketTypesSection(
@@ -570,22 +612,22 @@ export class PdfService {
       sold_out: ticket.sold_out || ticket.available === 0,
     }));
 
-    // Create enhanced PDF styles matching Tickit theme
+    // Create black and white PDF styles
     const pdfStyles: PDFStyles = {
       colors: {
-        primary: this.tixTheme.colors.accent,
-        secondary: this.tixTheme.colors.accent2,
-        accent: this.tixTheme.colors.accent3,
-        success: this.tixTheme.colors.success,
-        warning: this.tixTheme.colors.warning,
-        error: this.tixTheme.colors.error,
-        neutral: this.tixTheme.colors.slate600,
+        primary: this.tixTheme.colors.foreground,
+        secondary: this.tixTheme.colors.muted,
+        accent: this.tixTheme.colors.foreground,
+        success: this.tixTheme.colors.foreground,
+        warning: this.tixTheme.colors.muted,
+        error: this.tixTheme.colors.foreground,
+        neutral: this.tixTheme.colors.muted,
         background: this.tixTheme.colors.background,
         foreground: this.tixTheme.colors.foreground,
         muted: this.tixTheme.colors.muted,
         card: this.tixTheme.colors.card,
         border: this.tixTheme.colors.border,
-        shadow: this.tixTheme.colors.shadowDark,
+        shadow: this.tixTheme.colors.shadow,
       },
       fonts: {
         regular: this.tixTheme.fonts.regular,
@@ -637,279 +679,41 @@ export class PdfService {
   }
 
   private addEventBriefFooter(doc: any): void {
-    const footerY = doc.page.height - 80;
+    const footerY = doc.page.height - 60;
 
-    // Footer matching UI theme
+    // Simple black line separator
     doc
-      .rect(0, footerY, doc.page.width, 80)
-      .fill(this.tixTheme.colors.slate800);
+      .rect(40, footerY, doc.page.width - 80, 2)
+      .fill(this.tixTheme.colors.foreground);
 
-    // UI accent line
-    doc.rect(0, footerY, doc.page.width, 4).fill(this.tixTheme.colors.accent);
-
-    // Tickit branding
+    // Clean footer content
     doc
-      .fontSize(16)
+      .fontSize(12)
       .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.card)
-      .text("Tickit", 40, footerY + 25);
+      .fillColor(this.tixTheme.colors.foreground)
+      .text("TICKIT", 40, footerY + 15);
 
     doc
-      .fontSize(10)
+      .fontSize(9)
       .font(this.tixTheme.fonts.regular)
-      .fillColor(this.tixTheme.colors.slate300)
-      .opacity(0.8)
-      .text("Your premier event ticketing platform", 40, footerY + 45);
+      .fillColor(this.tixTheme.colors.muted)
+      .text("Premier Event Ticketing Platform", 40, footerY + 32);
 
-    // Generation date
+    // Generation date - clean and minimal
     const generationDate = new Date().toLocaleDateString("en-US", {
-      weekday: "long",
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     });
 
     doc
-      .opacity(1)
-      .fillColor(this.tixTheme.colors.slate300)
-      .text(
-        `Generated on ${generationDate}`,
-        doc.page.width - 200,
-        footerY + 35,
-      );
-  }
-
-  // UI HELPER COMPONENTS
-
-  private addUICard(
-    doc: any,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    title?: string,
-  ): void {
-    // Card shadow matching UI theme
-    doc
-      .roundedRect(x + 2, y + 2, width, height, this.tixTheme.borderRadius.lg)
-      .fill(this.tixTheme.colors.shadow)
-      .opacity(0.08);
-    doc.opacity(1);
-
-    // Main card with UI styling
-    doc
-      .roundedRect(x, y, width, height, this.tixTheme.borderRadius.lg)
-      .fill(this.tixTheme.colors.card)
-      .stroke(this.tixTheme.colors.stroke);
-
-    if (title) {
-      doc
-        .fontSize(16)
-        .font(this.tixTheme.fonts.bold)
-        .fillColor(this.tixTheme.colors.slate900);
-
-      this.renderText(doc, title, x + 20, y + 15);
-
-      // UI accent line
-      doc.rect(x + 20, y + 38, 60, 2).fill(this.tixTheme.colors.accent);
-    }
-  }
-
-  private addDetailRow(
-    doc: any,
-    detail: any,
-    y: number,
-    x: number,
-    index: number,
-  ): void {
-    // Alternating background like UI tables
-    if (index % 2 === 0) {
-      doc
-        .rect(x - 15, y - 4, doc.page.width - x - 25, 24)
-        .fill(this.tixTheme.colors.cardSoft);
-    }
-
-    // Clean text label instead of problematic icons
-    const iconLabel = this.getIconSymbol(detail.type);
-    doc
       .fontSize(9)
-      .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.accent)
-      .text(iconLabel, x, y - 1);
-
-    // Label with UI typography
-    doc
-      .fontSize(11)
-      .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.slate500);
-
-    this.renderText(doc, `${detail.label}:`, x + 45, y);
-
-    // Value with proper contrast
-    doc
-      .fontSize(11)
       .font(this.tixTheme.fonts.regular)
-      .fillColor(this.tixTheme.colors.slate900);
-
-    this.renderText(doc, detail.value, x + 120, y);
+      .fillColor(this.tixTheme.colors.muted)
+      .text(`Generated: ${generationDate}`, doc.page.width - 120, footerY + 25);
   }
 
-  private addCategoryBadge(
-    doc: any,
-    category: string,
-    x: number,
-    y: number,
-  ): void {
-    const cleanCategory = this.cleanText(category).toUpperCase();
-    doc.fontSize(10);
-    const badgeWidth = doc.widthOfString(cleanCategory) + 24;
-
-    // Badge with UI pill styling
-    doc
-      .roundedRect(x, y, badgeWidth, 24, 12)
-      .fill(this.tixTheme.colors.slate900);
-
-    doc
-      .fontSize(10)
-      .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.card);
-
-    this.renderText(doc, cleanCategory, x + 12, y + 7);
-  }
-
-  private addTagsSection(
-    doc: any,
-    tags: string[],
-    startY: number,
-    margin: number,
-  ): number {
-    // Tags header
-    doc
-      .fontSize(12)
-      .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.slate700)
-      .text("TAGS", margin + 20, startY);
-
-    let currentY = startY + 25;
-    let tagX = margin + 20;
-
-    tags.forEach((tag) => {
-      const cleanTag = this.cleanText(tag);
-      if (!cleanTag) return;
-
-      doc.fontSize(9);
-      const tagWidth = doc.widthOfString(cleanTag) + 16;
-
-      // Check if tag fits on current line
-      if (tagX + tagWidth > doc.page.width - margin - 20) {
-        tagX = margin + 20;
-        currentY += 25;
-      }
-
-      // Tag with UI outline badge styling
-      doc
-        .roundedRect(tagX, currentY, tagWidth, 18, 9)
-        .stroke(this.tixTheme.colors.border)
-        .fill(this.tixTheme.colors.card);
-
-      doc
-        .fontSize(9)
-        .font(this.tixTheme.fonts.regular)
-        .fillColor(this.tixTheme.colors.slate600);
-
-      this.renderText(doc, cleanTag, tagX + 8, currentY + 5);
-
-      tagX += tagWidth + 8;
-    });
-
-    return currentY + 25;
-  }
-
-  private addTicketTypeCard(
-    doc: any,
-    ticket: any,
-    x: number,
-    y: number,
-    width: number,
-  ): number {
-    const cardHeight = ticket.description ? 90 : 70;
-
-    // Card with UI shadow and styling
-    doc
-      .roundedRect(
-        x + 1,
-        y + 1,
-        width,
-        cardHeight,
-        this.tixTheme.borderRadius.md,
-      )
-      .fill(this.tixTheme.colors.shadowDark)
-      .opacity(0.06);
-    doc.opacity(1);
-
-    doc
-      .roundedRect(x, y, width, cardHeight, this.tixTheme.borderRadius.md)
-      .fill(this.tixTheme.colors.card)
-      .stroke(this.tixTheme.colors.border);
-
-    // Ticket name with UI typography
-    doc
-      .fontSize(14)
-      .font(this.tixTheme.fonts.bold)
-      .fillColor(this.tixTheme.colors.slate900);
-
-    const ticketLabel = this.getIconSymbol("ticket");
-    doc
-      .fontSize(10)
-      .fillColor(this.tixTheme.colors.accent)
-      .text(ticketLabel, x + 15, y + 18);
-
-    doc.fontSize(14).fillColor(this.tixTheme.colors.slate900);
-    this.renderText(doc, ticket.name, x + 50, y + 15);
-
-    // Price with UI color coding
-    const priceColor =
-      ticket.price === "Free"
-        ? this.tixTheme.colors.success
-        : this.tixTheme.colors.slate900;
-
-    doc.fontSize(16).font(this.tixTheme.fonts.bold).fillColor(priceColor);
-
-    this.renderText(doc, ticket.price, x + width - 100, y + 15);
-
-    // Availability with UI status colors
-    const availabilityColor =
-      ticket.available > 10
-        ? this.tixTheme.colors.success
-        : ticket.available > 0
-          ? this.tixTheme.colors.warning
-          : this.tixTheme.colors.error;
-
-    const availabilityText =
-      ticket.available > 0 ? `${ticket.available} available` : "Sold out";
-
-    doc
-      .fontSize(10)
-      .font(this.tixTheme.fonts.regular)
-      .fillColor(availabilityColor);
-
-    this.renderText(doc, availabilityText, x + width - 100, y + 35);
-
-    // Description with UI muted text
-    if (ticket.description) {
-      const cleanDescription = this.cleanText(ticket.description);
-      doc
-        .fontSize(9)
-        .font(this.tixTheme.fonts.regular)
-        .fillColor(this.tixTheme.colors.slate500);
-
-      this.renderText(doc, cleanDescription, x + 15, y + 55, {
-        width: width - 120,
-      });
-    }
-
-    return cardHeight;
-  }
+  // SIMPLIFIED BLACK & WHITE HELPER COMPONENTS (REMOVED COMPLEX UI FUNCTIONS)
 
   private wrapText(
     doc: any,

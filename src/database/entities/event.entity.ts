@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   OneToMany,
+  OneToOne,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -12,6 +13,8 @@ import {
 import { Organiser } from './organiser.entity';
 import { Venue } from './venue.entity';
 import { TicketType } from './ticket-type.entity';
+import { TicketDesign } from './ticket-design.entity';
+import { SeatMap } from './seat-map.entity';
 
 export enum EventVisibility {
   PUBLIC = 'PUBLIC',
@@ -141,6 +144,21 @@ export class Event {
 
   @Column({ type: 'boolean', default: false })
   hotRightNow: boolean;
+
+  // Ticket design and seat map
+  @Column({ type: 'char', length: 36, nullable: true })
+  ticketDesignId?: string;
+
+  @ManyToOne(() => TicketDesign, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'ticketDesignId' })
+  ticketDesign?: TicketDesign;
+
+  @Column({ type: 'char', length: 36, nullable: true })
+  seatMapId?: string;
+
+  @ManyToOne(() => SeatMap, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'seatMapId' })
+  seatMap?: SeatMap;
 
   @CreateDateColumn()
   createdAt: Date;

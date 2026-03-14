@@ -1,5 +1,5 @@
-import { IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsEnum, IsInt, Min, Max, IsBoolean } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { NotificationType } from '../../../database/entities/notification.entity';
 
 export class NotificationQueryDto {
@@ -8,7 +8,12 @@ export class NotificationQueryDto {
   type?: NotificationType;
 
   @IsOptional()
-  @Type(() => Boolean)
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
   isRead?: boolean;
 
   @IsOptional()

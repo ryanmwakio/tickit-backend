@@ -58,18 +58,18 @@ export interface TicketType {
 export class PdfStylesUtil {
   private static defaultStyles: PDFStyles = {
     colors: {
-      primary: "#2563eb",
-      secondary: "#7c3aed",
-      accent: "#06b6d4",
-      success: "#10b981",
-      warning: "#f59e0b",
-      error: "#ef4444",
-      neutral: "#6b7280",
+      primary: "#000000",
+      secondary: "#333333",
+      accent: "#000000",
+      success: "#000000",
+      warning: "#666666",
+      error: "#000000",
+      neutral: "#666666",
       background: "#ffffff",
-      foreground: "#1f2937",
-      muted: "#9ca3af",
+      foreground: "#000000",
+      muted: "#666666",
       card: "#ffffff",
-      border: "#e5e7eb",
+      border: "#d0d0d0",
       shadow: "#000000",
     },
     fonts: {
@@ -112,10 +112,10 @@ export class PdfStylesUtil {
     const contentWidth = pageWidth - margin * 2;
     let currentY = startY;
 
-    // Section header with enhanced styling
+    // Section header with black and white styling
     currentY = this.addSectionHeader(
       doc,
-      "Available Tickets",
+      "AVAILABLE TICKETS",
       margin,
       currentY,
       contentWidth,
@@ -173,21 +173,21 @@ export class PdfStylesUtil {
     height: number,
     styles: PDFStyles = this.defaultStyles,
   ): void {
-    // Card shadow
+    // Simple border outline
+    const cardFill = ticket.sold_out ? "#f8f8f8" : styles.colors.card;
     doc
-      .roundedRect(x + 2, y + 2, width, height, styles.borderRadius.lg)
-      .fill(styles.colors.shadow)
-      .opacity(0.08);
-
-    doc.opacity(1);
-
-    // Main card background
-    const cardFill = ticket.sold_out ? "#f8fafc" : styles.colors.card;
-    doc
-      .roundedRect(x, y, width, height, styles.borderRadius.lg)
+      .roundedRect(x, y, width, height, 8)
       .fill(cardFill)
-      .stroke(ticket.popular ? styles.colors.primary : styles.colors.border)
-      .lineWidth(ticket.popular ? 2 : 1);
+      .stroke(styles.colors.border)
+      .lineWidth(2);
+
+    // Bold border for popular tickets
+    if (ticket.popular) {
+      doc
+        .roundedRect(x + 1, y + 1, width - 2, height - 2, 7)
+        .stroke(styles.colors.foreground)
+        .lineWidth(2);
+    }
 
     // Popular badge
     if (ticket.popular) {
@@ -207,7 +207,7 @@ export class PdfStylesUtil {
     let contentY =
       y + (ticket.early_bird || ticket.popular ? 35 : styles.spacing.md);
 
-    // Ticket name with icon
+    // Ticket name - clean typography
     doc
       .fontSize(styles.fontSize.lg)
       .font(styles.fonts.bold)
@@ -215,9 +215,8 @@ export class PdfStylesUtil {
         ticket.sold_out ? styles.colors.muted : styles.colors.foreground,
       );
 
-    doc.text("🎫", x + styles.spacing.md, contentY, { width: 20 });
-    doc.text(ticket.name, x + styles.spacing.md + 25, contentY, {
-      width: width - 120,
+    doc.text(ticket.name.toUpperCase(), x + styles.spacing.md, contentY, {
+      width: width - styles.spacing.md * 2,
     });
 
     contentY += styles.spacing.lg + styles.spacing.sm;
@@ -290,34 +289,21 @@ export class PdfStylesUtil {
     width: number,
     styles: PDFStyles = this.defaultStyles,
   ): number {
-    const headerHeight = 50;
+    const headerHeight = 40;
 
-    // Background gradient simulation
-    doc
-      .rect(x, y, width, headerHeight)
-      .fill(styles.colors.primary)
-      .opacity(0.03);
-
-    doc.opacity(1);
-
-    // Header border
-    doc
-      .roundedRect(x, y, width, headerHeight, styles.borderRadius.sm)
-      .stroke(styles.colors.border)
-      .lineWidth(1);
-
-    // Title
+    // Simple header with underline
     doc
       .fontSize(styles.fontSize.xl)
       .font(styles.fonts.bold)
-      .fillColor(styles.colors.primary);
+      .fillColor(styles.colors.foreground);
 
-    doc.text(title, x + styles.spacing.lg, y + 15);
+    doc.text(title, x, y + 10);
 
-    // Accent line
+    // Clean underline
+    const titleWidth = doc.widthOfString(title);
     doc
-      .rect(x + styles.spacing.lg, y + headerHeight - 8, 60, 3)
-      .fill(styles.colors.accent);
+      .rect(x, y + headerHeight - 8, titleWidth, 2)
+      .fill(styles.colors.foreground);
 
     return y + headerHeight;
   }
@@ -332,18 +318,16 @@ export class PdfStylesUtil {
     styles: PDFStyles,
   ): void {
     const badgeWidth = 70;
-    const badgeHeight = 20;
+    const badgeHeight = 18;
 
-    doc
-      .roundedRect(x, y, badgeWidth, badgeHeight, styles.borderRadius.sm)
-      .fill(styles.colors.primary);
+    doc.rect(x, y, badgeWidth, badgeHeight).fill(styles.colors.foreground);
 
     doc
       .fontSize(styles.fontSize.xs)
       .font(styles.fonts.bold)
       .fillColor("#ffffff");
 
-    doc.text("⭐ POPULAR", x + 8, y + 6, { width: badgeWidth - 16 });
+    doc.text("POPULAR", x + 8, y + 5, { width: badgeWidth - 16 });
   }
 
   /**
@@ -355,19 +339,17 @@ export class PdfStylesUtil {
     y: number,
     styles: PDFStyles,
   ): void {
-    const badgeWidth = 85;
-    const badgeHeight = 20;
+    const badgeWidth = 80;
+    const badgeHeight = 18;
 
-    doc
-      .roundedRect(x, y, badgeWidth, badgeHeight, styles.borderRadius.sm)
-      .fill(styles.colors.warning);
+    doc.rect(x, y, badgeWidth, badgeHeight).fill(styles.colors.muted);
 
     doc
       .fontSize(styles.fontSize.xs)
       .font(styles.fonts.bold)
       .fillColor("#ffffff");
 
-    doc.text("🐦 EARLY BIRD", x + 6, y + 6, { width: badgeWidth - 12 });
+    doc.text("EARLY BIRD", x + 8, y + 5, { width: badgeWidth - 16 });
   }
 
   /**
@@ -383,25 +365,22 @@ export class PdfStylesUtil {
   ): void {
     const isFree =
       ticket.price.toLowerCase().includes("free") || ticket.price === "0";
-    const priceColor = isFree
-      ? styles.colors.success
-      : styles.colors.foreground;
 
-    // Price background
-    const priceBoxWidth = 120;
+    // Price background - clean black and white
+    const priceBoxWidth = 100;
     doc
-      .roundedRect(x, y - 2, priceBoxWidth, 24, styles.borderRadius.sm)
-      .fill(isFree ? "#f0fdf4" : "#f8fafc")
-      .stroke(isFree ? styles.colors.success : styles.colors.border)
+      .rect(x, y - 2, priceBoxWidth, 22)
+      .fill(isFree ? "#f0f0f0" : "#ffffff")
+      .stroke(styles.colors.border)
       .lineWidth(1);
 
     // Price text
     doc
       .fontSize(styles.fontSize.lg)
       .font(styles.fonts.bold)
-      .fillColor(priceColor);
+      .fillColor(styles.colors.foreground);
 
-    const priceText = isFree ? "💚 FREE" : `💰 ${ticket.price}`;
+    const priceText = isFree ? "FREE" : ticket.price;
     doc.text(priceText, x + styles.spacing.sm, y + 2);
   }
 
@@ -418,31 +397,23 @@ export class PdfStylesUtil {
   ): void {
     let statusColor = styles.colors.success;
     let statusText = "";
-    let statusIcon = "🟢";
-
     if (ticket.sold_out || ticket.available === 0) {
-      statusColor = styles.colors.error;
+      statusColor = styles.colors.foreground;
       statusText = "SOLD OUT";
-      statusIcon = "🔴";
     } else if (ticket.available <= 10) {
-      statusColor = styles.colors.warning;
+      statusColor = styles.colors.muted;
       statusText = `${ticket.available} tickets left`;
-      statusIcon = "🟡";
-    } else if (ticket.available <= 50) {
-      statusColor = styles.colors.warning;
-      statusText = `${ticket.available} available`;
-      statusIcon = "🟡";
     } else {
       statusText = `${ticket.available} available`;
     }
 
-    // Status indicator
+    // Status indicator - text only
     doc
       .fontSize(styles.fontSize.sm)
       .font(styles.fonts.regular)
       .fillColor(statusColor);
 
-    doc.text(`${statusIcon} ${statusText}`, x, y);
+    doc.text(statusText, x, y);
 
     // Progress bar if total is available
     if (ticket.total && ticket.total > 0 && !ticket.sold_out) {
@@ -453,14 +424,14 @@ export class PdfStylesUtil {
 
       // Progress background
       doc
-        .roundedRect(x, progressY, progressWidth, progressHeight, 2)
+        .rect(x, progressY, progressWidth, progressHeight)
         .fill(styles.colors.border);
 
       // Progress fill
       if (fillWidth > 0) {
         doc
-          .roundedRect(x, progressY, fillWidth, progressHeight, 2)
-          .fill(statusColor);
+          .rect(x, progressY, fillWidth, progressHeight)
+          .fill(styles.colors.foreground);
       }
     }
   }
@@ -483,7 +454,7 @@ export class PdfStylesUtil {
 
     const maxFeatures = Math.min(features.length, 3);
     for (let i = 0; i < maxFeatures; i++) {
-      doc.text(`✓ ${features[i]}`, x, y + i * 12, { width: width });
+      doc.text(`• ${features[i]}`, x, y + i * 12, { width: width });
     }
 
     if (features.length > 3) {
@@ -505,26 +476,20 @@ export class PdfStylesUtil {
     height: number,
     styles: PDFStyles,
   ): void {
-    // Semi-transparent overlay
+    // Simple sold out overlay
     doc
-      .roundedRect(x, y, width, height, styles.borderRadius.lg)
+      .rect(x + 10, y + height / 2 - 15, width - 20, 30)
       .fill("#ffffff")
-      .opacity(0.8);
-
-    doc.opacity(1);
-
-    // Diagonal "SOLD OUT" text
-    doc.save();
-    doc.translate(x + width / 2, y + height / 2);
-    doc.rotate(-15);
+      .stroke(styles.colors.foreground)
+      .lineWidth(2);
 
     doc
-      .fontSize(styles.fontSize.xl)
+      .fontSize(styles.fontSize.lg)
       .font(styles.fonts.bold)
-      .fillColor(styles.colors.error);
+      .fillColor(styles.colors.foreground);
 
-    doc.text("SOLD OUT", -35, -8);
-    doc.restore();
+    const textWidth = doc.widthOfString("SOLD OUT");
+    doc.text("SOLD OUT", x + (width - textWidth) / 2, y + height / 2 - 7);
   }
 
   /**
@@ -598,7 +563,7 @@ export class PdfStylesUtil {
       .font(styles.fonts.bold)
       .fillColor(styles.colors.foreground);
 
-    doc.text("📊 Ticket Summary", x + styles.spacing.md, statsY);
+    doc.text("TICKET SUMMARY", x + styles.spacing.md, statsY);
 
     doc
       .fontSize(styles.fontSize.sm)
