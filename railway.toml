@@ -1,0 +1,21 @@
+# Railway deployment configuration for Tickit Backend (NestJS)
+# Docs: https://docs.railway.app/deploy/config-as-code
+#
+# If this repo is a monorepo, set the service "Root Directory" to tickit-backend in the Railway dashboard.
+# Add all variables from .env.example in Railway → Service → Variables (DB_*, JWT_*, REDIS_*, etc.).
+
+[build]
+# Install deps (Nixpacks may run this by default) and build NestJS
+buildCommand = "npm ci && npm run build"
+
+[deploy]
+# Run compiled app from dist/
+startCommand = "npm run start:prod"
+
+# Run TypeORM migrations before starting the app (optional; remove if you run migrations separately)
+# preDeployCommand = "npm run migration:run"
+
+# Railway sets PORT automatically; ensure your app uses process.env.PORT
+# Restart policy
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
