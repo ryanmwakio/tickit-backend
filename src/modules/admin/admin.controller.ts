@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Sse,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { EventsService } from '../events/events.service';
@@ -14,6 +27,7 @@ import { RefundStatus } from '../../database/entities/refund.entity';
 import { TicketStatus } from '../../database/entities/ticket.entity';
 import { UuidParamDto } from '../../common/dto/uuid-param.dto';
 import { ApproveEventDto } from './dto/approve-event.dto';
+import { Observable } from 'rxjs';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -191,6 +205,59 @@ export class AdminController {
     @CurrentUser() user: User,
   ) {
     return this.eventsService.rejectEvent(params.id, user.id, rejectDto.reason);
+  }
+
+  @Post('events/generate-random')
+  @ApiOperation({
+    summary: 'Generate a large batch of random events for an organiser (Admin only)',
+  })
+  @ApiResponse({ status: 201, description: 'Events generated' })
+  async generateRandomEvents(
+    @CurrentUser() user: User,
+    @Body() body: { organiserId?: string; count?: number },
+  ) {
+    return this.adminService.generateRandomEventsForOrganiser(user.id, body);
+  }
+
+  @Sse('events/generate-random/stream')
+  @ApiOperation({
+    summary: 'Stream progress for generating random events (Admin only)',
+  })
+  streamGenerateRandomEvents(
+    @CurrentUser() user: User,
+    @Query('organiserId') organiserId?: string,
+    @Query('count') count?: string,
+  ): Observable<{ data: any }> {
+    const safeOrganiserId = organiserId || undefined;
+    const safeCountNum = Number.parseInt(count || '1000', 10) || 1000;
+    let finalTotal = safeCountNum;
+
+    return new Observable((subscriber) => {
+      this.adminService
+        .generateRandomEventsForOrganiser(
+          user.id,
+          { organiserId: safeOrganiserId, count: safeCountNum },
+          (created: number, total: number) => {
+            finalTotal = total;
+            subscriber.next({
+              data: { type: 'progress', created, total },
+            });
+          },
+        )
+        .then((result) => {
+          subscriber.next({
+            data: { type: 'done', created: result.created, total: finalTotal, organiserId: result.organiserId },
+          });
+          subscriber.complete();
+        })
+        .catch((err) => {
+          subscriber.error(err);
+        });
+
+      return () => {
+        // No cancellation support in this generator
+      };
+    });
   }
 
   @Get('checkins')

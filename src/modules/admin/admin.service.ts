@@ -1,9 +1,9 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, MoreThan, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
-import { Event, EventStatus } from '../../database/entities/event.entity';
+import { Event, EventStatus, EventVisibility } from '../../database/entities/event.entity';
 import { Order, OrderStatus } from '../../database/entities/order.entity';
 import { Ticket, TicketStatus } from '../../database/entities/ticket.entity';
 import { Checkin } from '../../database/entities/checkin.entity';
@@ -1006,6 +1006,156 @@ export class AdminService {
         featured: false,
       },
     };
+  }
+
+  /**
+   * Generate a batch of events tied to a single organiser.
+   * Events are always scheduled for "today or in the future" by ensuring startsAt >= now.
+   */
+  async generateRandomEventsForOrganiser(
+    userId: string,
+    payload: { organiserId?: string; count?: number },
+    onProgress?: (created: number, total: number) => void,
+  ): Promise<{ created: number; organiserId: string }> {
+    await this.checkAdminAccess(userId);
+
+    const requested = payload?.count ?? 1000;
+    const countRaw = typeof requested === 'string' ? parseInt(requested, 10) : requested;
+    const count = Number.isFinite(countRaw)
+      ? Math.max(1, Math.min(1000, countRaw))
+      : 1000;
+
+    let organiser: Organiser | null = null;
+    if (payload?.organiserId) {
+      organiser = await this.organiserRepository.findOne({
+        where: { id: payload.organiserId },
+      });
+    } else {
+      const organisers = await this.organiserRepository.find({
+        select: ['id', 'name'],
+        take: 100,
+      });
+      organiser = organisers[Math.floor(Math.random() * organisers.length)] ?? null;
+    }
+
+    if (!organiser) {
+      throw new NotFoundException('Organiser not found');
+    }
+
+    const categories = [
+      'Music',
+      'Technology',
+      'Business',
+      'Sports',
+      'Education',
+      'Wellness',
+      'Food',
+      'Community',
+      'Arts',
+    ];
+    const titleAdjectives = ['Ultimate', 'City', 'Future', 'Grand', 'Prime', 'Neon', 'Golden', 'Urban', 'Elite'];
+    const titleNouns = ['Summit', 'Gala', 'Conference', 'Festival', 'Showcase', 'Workshop', 'Tournament', 'Experience'];
+    const tagPool = ['vip', 'family', 'tech', 'music', 'art', 'community', 'outdoors', 'premium', 'students', 'networking'];
+    const timezone = 'Africa/Nairobi';
+
+    const now = new Date();
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const msUntilEndOfToday = endOfToday.getTime() - now.getTime();
+
+    const maxFutureDays = 180; // keep it bounded for predictable DB growth
+    const maxFutureMs = maxFutureDays * 24 * 60 * 60 * 1000;
+
+    const generateSlug = (title: string) => {
+      const base = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      // Always include organiser + index to avoid collisions with existing slugs.
+      return base;
+    };
+
+    const toTitle = (i: number) => {
+      const adj = titleAdjectives[i % titleAdjectives.length];
+      const noun = titleNouns[Math.floor(i / titleAdjectives.length) % titleNouns.length];
+      return `${adj} ${noun} - ${organiser.name}`.slice(0, 190);
+    };
+
+    const randInt = (min: number, max: number) =>
+      Math.floor(min + Math.random() * (max - min + 1));
+
+    // Generate and save in chunks to avoid huge single inserts.
+    const chunkSize = 100;
+    let created = 0;
+
+    for (let start = 0; start < count; start += chunkSize) {
+      const batchSize = Math.min(chunkSize, count - start);
+      const batch: Event[] = [];
+
+      for (let j = 0; j < batchSize; j++) {
+        const i = start + j;
+
+        // 20% chance of scheduling somewhere later today (if time remains), otherwise future.
+        const startAtMs =
+          msUntilEndOfToday > 0 && Math.random() < 0.2
+            ? now.getTime() + Math.floor(Math.random() * msUntilEndOfToday)
+            : now.getTime() + msUntilEndOfToday + 1000 + Math.floor(Math.random() * (maxFutureMs - msUntilEndOfToday));
+
+        const startsAt = new Date(startAtMs);
+
+        const durationHours = randInt(2, 6);
+        const endsAt = new Date(startAtMs + durationHours * 60 * 60 * 1000);
+
+        if (startsAt.getTime() < now.getTime()) {
+          // Defensive safety: never generate past events.
+          startsAt.setTime(now.getTime() + 60 * 1000);
+        }
+        if (endsAt.getTime() <= startsAt.getTime()) {
+          endsAt.setTime(startsAt.getTime() + 60 * 60 * 1000);
+        }
+
+        const title = toTitle(i);
+        const category = categories[randInt(0, categories.length - 1)];
+        const tags = Array.from({ length: 2 })
+          .map(() => tagPool[randInt(0, tagPool.length - 1)])
+          .filter((t, idx, arr) => arr.indexOf(t) === idx);
+
+        const slugBase = generateSlug(title);
+        const uniqueSuffix = `${organiser.id.slice(0, 4)}-${i}-${Math.random().toString(36).slice(2, 6)}`;
+        const slug = `${slugBase}-${uniqueSuffix}`.slice(0, 250);
+
+        batch.push(
+          this.eventRepository.create({
+            id: uuidv4(),
+            organiserId: organiser.id,
+            title,
+            slug,
+            description: `Automatically generated event for ${organiser.name}.`,
+            category,
+            tags,
+            visibility: EventVisibility.PUBLIC,
+            status: EventStatus.DRAFT,
+            timezone,
+            startsAt,
+            endsAt,
+            capacity: randInt(100, 5000),
+            featured: Math.random() < 0.1,
+            livePulse: Math.random() < 0.1,
+            hotRightNow: Math.random() < 0.05,
+          }),
+        );
+      }
+
+      await this.eventRepository.save(batch);
+      created += batch.length;
+      onProgress?.(created, count);
+    }
+
+    if (created !== count) {
+      throw new BadRequestException(`Expected to create ${count} events but created ${created}`);
+    }
+
+    return { created, organiserId: organiser.id };
   }
 }
 
